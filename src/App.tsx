@@ -13,6 +13,21 @@ const router = createRouter({
 	scrollRestoration: true,
 });
 
+if (typeof window !== "undefined") {
+	const searchParams = new URLSearchParams(window.location.search);
+	// Support opening by `/?route=/xxx` and forward remaining query params.
+	const route = searchParams.get("route");
+	if (route && route.startsWith("/")) {
+		searchParams.delete("route");
+		const extraSearch = searchParams.toString();
+		const to = extraSearch
+			? `${route}${route.includes("?") ? "&" : "?"}${extraSearch}`
+			: route;
+
+		router.navigate({ to, replace: true }).catch(() => {});
+	}
+}
+
 // Register things for typesafety
 declare module "@tanstack/react-router" {
 	interface Register {

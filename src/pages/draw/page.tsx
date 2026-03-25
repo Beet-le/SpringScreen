@@ -1312,13 +1312,9 @@ const DrawPageCore: React.FC<{
 				return;
 			} else if (drawPageStateRef.current === DrawPageState.Release) {
 				// 这时候可能窗口还在加载中，每隔一段时间触发下截图
-				if (releaseExecuteScreenshotTimerRef.current?.timer) {
-					clearInterval(releaseExecuteScreenshotTimerRef.current.timer);
-				}
+				// Release 阶段只记录一次待执行截图，避免循环重发。
 				releaseExecuteScreenshotTimerRef.current = {
-					timer: setInterval(() => {
-						executeScreenshotFunc(payload.type, appWindowRef.current?.label);
-					}, 128),
+					timer: undefined,
 					type: payload.type,
 				};
 
@@ -1344,8 +1340,13 @@ const DrawPageCore: React.FC<{
 				}
 
 				if (releaseExecuteScreenshotTimerRef.current?.timer) {
-					clearInterval(releaseExecuteScreenshotTimerRef.current.timer);
+					clearTimeout(releaseExecuteScreenshotTimerRef.current.timer);
+				}
+
+				// release 完成后只执行一次，然后清空。
+				if (releaseExecuteScreenshotTimerRef.current) {
 					executeScreenshotFunc(releaseExecuteScreenshotTimerRef.current.type);
+					releaseExecuteScreenshotTimerRef.current = undefined;
 				}
 			}
 

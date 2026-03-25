@@ -1,5 +1,6 @@
 import { emit } from "@tauri-apps/api/event";
 import * as tauriLog from "@tauri-apps/plugin-log";
+import { createDrawWindow } from "@/commands";
 import { captureFocusedWindow } from "@/commands/screenshot";
 import { FOCUS_WINDOW_APP_NAME_ENV_VARIABLE } from "@/constants/components/chat";
 import { type AppSettingsData, AppSettingsGroup } from "@/types/appSettings";
@@ -14,6 +15,9 @@ export const executeScreenshot = async (
 	windowLabel?: string,
 	captureHistoryId?: string,
 ) => {
+	// Ensure draw window pool is normalized before broadcasting screenshot event.
+	await createDrawWindow();
+
 	await emit("execute-screenshot", {
 		type,
 		windowLabel,

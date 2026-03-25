@@ -175,7 +175,12 @@ pub async fn create_fixed_content_window(
         window_y = monitor_y / monitor_scale_factor;
     }
 
-    let url = format!("/fixedContent?scroll_screenshot={}", scroll_screenshot);
+    // 开发环境统一走 `/?route=...`，兼容 dev server 的 history fallback。
+    let url = if cfg!(debug_assertions) {
+        format!("/?route=/fixedContent&scroll_screenshot={}", scroll_screenshot)
+    } else {
+        format!("/fixedContent?scroll_screenshot={}", scroll_screenshot)
+    };
 
     if let Some(window) = hot_load_page_service.pop_page().await {
         window.set_always_on_top(true).unwrap();

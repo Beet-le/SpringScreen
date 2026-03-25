@@ -33,10 +33,99 @@ use snow_shot_app_services::video_record_service;
 use snow_shot_app_shared::EnigoManager;
 use snow_shot_global_state::{CaptureState, ReadClipboardState, WebViewSharedBufferState};
 use snow_shot_plugin_service::plugin_service;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[cfg(feature = "dhat-heap")]
 pub static PROFILER: std::sync::LazyLock<Mutex<Option<dhat::Profiler>>> =
     std::sync::LazyLock::new(|| Mutex::new(None));
+
+static OPEN_DRAW_TRIGGERING: AtomicBool = AtomicBool::new(false);
+static LAST_OPEN_DRAW_TRIGGER_AT_MS: AtomicU64 = AtomicU64::new(0);
+// Debounce window for --open-draw re-triggers.
+const OPEN_DRAW_TRIGGER_DEBOUNCE_MS: u64 = 1200;
+
+fn can_trigger_open_draw_now(now_ms: u64) -> bool {
+    loop {
+        let last_ms = LAST_OPEN_DRAW_TRIGGER_AT_MS.load(Ordering::SeqCst);
+        if now_ms.saturating_sub(last_ms) < OPEN_DRAW_TRIGGER_DEBOUNCE_MS {
+            return false;
+        }
+
+        if LAST_OPEN_DRAW_TRIGGER_AT_MS
+            .compare_exchange(last_ms, now_ms, Ordering::SeqCst, Ordering::SeqCst)
+            .is_ok()
+        {
+            return true;
+        }
+    }
+}
+
+fn latest_draw_window_label(app: &tauri::AppHandle) -> Option<String> {
+    // Pick only the newest draw window and emit to it to avoid broadcast duplication.
+    let mut labels = app
+        .webview_windows()
+        .keys()
+        .filter(|label| label.starts_with("draw-"))
+        .cloned()
+        .collect::<Vec<String>>();
+    labels.sort_unstable();
+    labels.pop()
+}
+
+/// Check whether command line contains `--open-draw`.
+fn has_open_draw_arg(args: &[String]) -> bool {
+    args.iter().any(|arg| arg == "--open-draw")
+}
+
+/// Open draw page and execute screenshot once.
+fn schedule_open_draw(app: tauri::AppHandle) {
+    let now_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+    if !can_trigger_open_draw_now(now_ms) {
+        return;
+    }
+
+    if OPEN_DRAW_TRIGGERING.swap(true, Ordering::SeqCst) {
+        return;
+    }
+
+    tauri::async_runtime::spawn(async move {
+        let capture_state = app.state::<Mutex<CaptureState>>();
+        if !capture_state.lock().await.capturing {
+            let mut target_label = latest_draw_window_label(&app);
+            if target_label.is_none() {
+                // Create the window first, then wait briefly for registration.
+                screenshot::create_draw_window(app.clone()).await;
+                tokio::time::sleep(Duration::from_millis(180)).await;
+                target_label = latest_draw_window_label(&app);
+            }
+
+            if let Some(label) = target_label {
+                // The draw page listener may not be ready immediately after window creation.
+                // Retry longer, but stop as soon as capture has started.
+                for _ in 0..20 {
+                    let is_capturing = app.state::<Mutex<CaptureState>>().lock().await.capturing;
+                    if is_capturing {
+                        break;
+                    }
+
+                    let _ = app.emit_to(
+                        label.clone(),
+                        "execute-screenshot",
+                        serde_json::json!({ "type": "default" }),
+                    );
+
+                    tokio::time::sleep(Duration::from_millis(150)).await;
+                }
+            }
+        }
+
+        OPEN_DRAW_TRIGGERING.store(false, Ordering::SeqCst);
+    });
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -114,11 +203,16 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_os::init())
-        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
-            let app_window = app.get_webview_window("main").expect("no main window");
-            app_window.show().unwrap();
-            app_window.unminimize().unwrap();
-            app_window.set_focus().unwrap();
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _| {
+            if has_open_draw_arg(&argv) {
+                // Secondary instance with --open-draw asks primary instance to capture once.
+                schedule_open_draw(app.clone());
+            } else {
+                let app_window = app.get_webview_window("main").expect("no main window");
+                app_window.show().unwrap();
+                app_window.unminimize().unwrap();
+                app_window.set_focus().unwrap();
+            }
         }))
         .plugin(tauri_plugin_macos_permissions::init())
         .plugin(tauri_plugin_opener::init())
@@ -159,6 +253,12 @@ pub fn run() {
             let main_window = app
                 .get_webview_window("main")
                 .expect("[lib::setup] no main window");
+
+            let args: Vec<String> = std::env::args().collect();
+            if has_open_draw_arg(&args) {
+                // Primary instance startup also supports --open-draw.
+                schedule_open_draw(app.handle().clone());
+            }
 
             #[cfg(target_os = "windows")]
             {

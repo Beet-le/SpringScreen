@@ -11,6 +11,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::ipc::Response;
+use tauri::Manager;
 use tokio::sync::Mutex;
 
 pub async fn capture_current_monitor(
@@ -606,6 +607,40 @@ pub async fn get_mouse_position(app: tauri::AppHandle) -> Result<(i32, i32), Str
 }
 
 pub async fn create_draw_window(app: tauri::AppHandle) {
+    let mut draw_windows = app
+        .webview_windows()
+        .iter()
+        .filter(|(label, _)| label.starts_with("draw-"))
+        .map(|(label, window)| (label.to_string(), window.clone()))
+        .collect::<Vec<(String, tauri::WebviewWindow)>>();
+    draw_windows.sort_by(|a, b| a.0.cmp(&b.0));
+
+    let mut hidden_windows = draw_windows
+        .iter()
+        .filter_map(|(label, window)| match window.is_visible() {
+            Ok(false) => Some((label.clone(), window.clone())),
+            _ => None,
+        })
+        .collect::<Vec<(String, tauri::WebviewWindow)>>();
+    hidden_windows.sort_by(|a, b| a.0.cmp(&b.0));
+
+    // Keep only one standby draw window to avoid one event being handled multiple times.
+    if !hidden_windows.is_empty() {
+        let keep_label = hidden_windows.last().map(|(label, _)| label.to_string());
+        for (label, window) in hidden_windows.into_iter() {
+            if keep_label.as_deref() != Some(label.as_str()) {
+                let _ = window.close();
+            }
+        }
+        return;
+    }
+
+    let draw_url = if cfg!(debug_assertions) {
+        "/?route=/draw".to_string()
+    } else {
+        "/draw".to_string()
+    };
+
     let window = tauri::WebviewWindowBuilder::new(
         &app,
         format!(
@@ -615,7 +650,7 @@ pub async fn create_draw_window(app: tauri::AppHandle) {
                 .unwrap()
                 .as_secs()
         ),
-        tauri::WebviewUrl::App(format!("/draw").into()),
+        tauri::WebviewUrl::App(draw_url.into()),
     )
     .resizable(false)
     .maximizable(false)

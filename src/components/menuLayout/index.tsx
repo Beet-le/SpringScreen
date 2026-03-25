@@ -482,18 +482,19 @@ const MenuLayoutCore: React.FC<{ children: React.ReactNode }> = ({
 					},
 				],
 			},
-			{
-				key: "/about",
-				path: "/about",
-				tabs: [
-					{
-						key: "snowShot",
-						label: intl.formatMessage({ id: "home.snowShot" }),
-					},
-				],
-				label: intl.formatMessage({ id: "menu.about" }),
-				icon: <InfoCircleOutlined />,
-			},
+			// 临时隐藏 About 菜单，先聚焦核心功能入口，后续再按产品节奏恢复。
+			// {
+			// 	key: "/about",
+			// 	path: "/about",
+			// 	tabs: [
+			// 		{
+			// 			key: "snowShot",
+			// 			label: intl.formatMessage({ id: "home.snowShot" }),
+			// 		},
+			// 	],
+			// 	label: intl.formatMessage({ id: "menu.about" }),
+			// 	icon: <InfoCircleOutlined />,
+			// },
 		];
 
 		return routes;

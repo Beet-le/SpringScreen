@@ -8,10 +8,20 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			"@": "./src",
+			// 强制走 CJS 入口，避免 dev 场景下该包被 ESM 解析导致兼容问题。
+			"browser-fs-access": "./node_modules/browser-fs-access/dist/index.cjs",
 		},
 	},
 	output: {
 		cleanDistPath: true,
+	},
+	server: {
+		// 允许直接访问深层路由（如 /draw、/fixedContent）时回退到 index。
+		historyApiFallback: true,
+	},
+	dev: {
+		// 关闭懒编译，避免首帧截图链路第一次触发时模块还未编译完成。
+		lazyCompilation: false,
 	},
 	performance: {
 		chunkSplit: {
