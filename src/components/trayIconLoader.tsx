@@ -518,7 +518,7 @@ const TrayIconLoaderComponent = () => {
 					(await defaultWindowIcon()) ??
 					""),
 			showMenuOnLeftClick: false,
-			tooltip: "Snow Shot",
+			tooltip: "小秋截图",
 			action: (event) => {
 				switch (event.type) {
 					case "Click":

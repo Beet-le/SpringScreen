@@ -72,7 +72,7 @@ export const getImageSaveDirectory = async (appSettings: AppSettingsData) => {
 		appSettings[AppSettingsGroup.FunctionScreenshot].saveFileDirectory;
 
 	if (!savePath) {
-		savePath = await joinPath(await pictureDir(), "Snow Shot");
+		savePath = await joinPath(await pictureDir(), "SpringScreen");
 	}
 
 	return savePath;

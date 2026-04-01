@@ -473,7 +473,7 @@ export const settings = {
 	"settings.functionSettings.trayIconSettings.iconClickAction.showMainWindow":
 		"显示主窗口",
 	"settings.systemSettings.dataFile": "软件数据",
-	"settings.systemSettings.dataDirectory": "数据目录",
+	" y": "数据目录",
 	"settings.systemSettings.dataFilePath.setDirectory.tip":
 		"修改后，软件数据将存储该目录下，重启后生效",
 	"settings.systemSettings.dataFilePath.setDirectory": "更换目录",

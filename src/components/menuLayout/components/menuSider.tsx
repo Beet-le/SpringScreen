@@ -69,7 +69,7 @@ const MenuSiderCore: React.FC<{
 					<div className="macos-title-bar-margin app-tauri-drag-region"></div>
 				)}
 
-				{currentPlatform !== "macos" && (
+				{/* {currentPlatform !== "macos" && (
 					<div className="logo-wrap">
 						<div className="logo-text">
 							{collapsed ? (
@@ -85,7 +85,7 @@ const MenuSiderCore: React.FC<{
 							)}
 						</div>
 					</div>
-				)}
+				)} */}
 				<RSC>
 					<Menu
 						defaultSelectedKeys={[menuItems[0]?.key?.toString() ?? "/"]}
