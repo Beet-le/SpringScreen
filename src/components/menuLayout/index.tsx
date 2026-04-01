@@ -1,6 +1,5 @@
 import {
 	AppstoreOutlined,
-	InfoCircleOutlined,
 	SettingOutlined,
 	ToolOutlined,
 } from "@ant-design/icons";
