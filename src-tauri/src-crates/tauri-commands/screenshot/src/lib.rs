@@ -615,19 +615,29 @@ pub async fn create_draw_window(app: tauri::AppHandle) {
         .collect::<Vec<(String, tauri::WebviewWindow)>>();
     draw_windows.sort_by(|a, b| a.0.cmp(&b.0));
 
-    let mut hidden_windows = draw_windows
+    let mut standby_windows = draw_windows
         .iter()
-        .filter_map(|(label, window)| match window.is_visible() {
-            Ok(false) => Some((label.clone(), window.clone())),
-            _ => None,
+        .filter_map(|(label, window)| {
+            let is_hidden = matches!(window.is_visible(), Ok(false));
+            let is_offscreen_standby = matches!(
+                (window.outer_position(), window.inner_size(), window.is_focused()),
+                (Ok(position), Ok(size), Ok(false))
+                    if position.x <= -30000 && position.y <= -30000 && size.width <= 1 && size.height <= 1
+            );
+
+            if is_hidden || is_offscreen_standby {
+                Some((label.clone(), window.clone()))
+            } else {
+                None
+            }
         })
         .collect::<Vec<(String, tauri::WebviewWindow)>>();
-    hidden_windows.sort_by(|a, b| a.0.cmp(&b.0));
+    standby_windows.sort_by(|a, b| a.0.cmp(&b.0));
 
     // Keep only one standby draw window to avoid one event being handled multiple times.
-    if !hidden_windows.is_empty() {
-        let keep_label = hidden_windows.last().map(|(label, _)| label.to_string());
-        for (label, window) in hidden_windows.into_iter() {
+    if !standby_windows.is_empty() {
+        let keep_label = standby_windows.last().map(|(label, _)| label.to_string());
+        for (label, window) in standby_windows.into_iter() {
             if keep_label.as_deref() != Some(label.as_str()) {
                 let _ = window.close();
             }
@@ -662,7 +672,9 @@ pub async fn create_draw_window(app: tauri::AppHandle) {
     .transparent(true)
     .skip_taskbar(true)
     .inner_size(1.0, 1.0)
-    .visible(false)
+    // Keep the standby page technically visible so WebView2 does not background-freeze it.
+    .position(-32000.0, -32000.0)
+    .visible(true)
     .focused(false)
     .build()
     .unwrap();
@@ -693,7 +705,7 @@ pub async fn create_draw_window(app: tauri::AppHandle) {
         }
     }
 
-    window.hide().unwrap();
+    let _ = window.set_ignore_cursor_events(true);
 }
 
 pub async fn set_draw_window_style(window: tauri::Window) {

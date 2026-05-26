@@ -585,10 +585,13 @@ const FixedContentCoreInner: React.FC<{
 		async (htmlContent: string) => {
 			// 通过设置窗口大小的位置，来激活窗口，触发窗口的 laod 事件
 			await getCurrentWindow().setPosition(new PhysicalPosition(0, 0));
-			await Promise.all([
-				getCurrentWindow().setSize(new PhysicalSize(600, 600)),
-				getCurrentWebview().setSize(new PhysicalSize(600, 600)),
-			]);
+			await getCurrentWindow().setSize(new PhysicalSize(600, 600));
+			try {
+				await getCurrentWebview().setSize(new PhysicalSize(600, 600));
+			} catch {
+				// The page can initialize before a webview handle is ready.
+				// Resizing the window alone is a safe fallback here.
+			}
 
 			originHtmlContentRef.current = htmlContent;
 			const parser = new DOMParser();

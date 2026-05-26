@@ -1089,15 +1089,30 @@ export const ScrollScreenshot: React.FC<{
                 .touch-area-tip-container .touch-area-tip {
                     color: ${token.colorWhite};
                     text-align: center;
-                    background-color: ${token.colorBgMask};
-                    padding: ${token.paddingXXS}px ${token.paddingSM}px;
-                    border-radius: ${token.borderRadiusSM}px;
-                    box-shadow: 0 0 1px 0px ${token.colorPrimaryHover};
-                    transition: box-shadow ${token.motionDurationFast} ${token.motionEaseInOut};
+                    font-size: calc(${token.fontSizeXL}px + 2px);
+                    font-weight: ${token.fontWeightStrong};
+                    line-height: 1.6;
+                    letter-spacing: 0.02em;
+                    background-color: rgba(0, 0, 0, 0.72);
+                    min-width: 220px;
+                    padding: ${token.paddingLG}px calc(${token.paddingXL}px + 6px);
+                    border-radius: ${token.borderRadiusLG + 4}px;
+                    border: 1px solid ${token.colorPrimaryBorderHover};
+                    box-shadow:
+                        0 16px 36px rgba(0, 0, 0, 0.3),
+                        0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+                    transition:
+                        box-shadow ${token.motionDurationFast} ${token.motionEaseInOut},
+                        transform ${token.motionDurationFast} ${token.motionEaseInOut},
+                        background-color ${token.motionDurationFast} ${token.motionEaseInOut};
                 }
 
                 .touch-area-tip-container:hover .touch-area-tip {
-                    box-shadow: 0 0 6px 0px ${token.colorPrimaryHover};
+                    background-color: rgba(0, 0, 0, 0.8);
+                    transform: translateY(-2px);
+                    box-shadow:
+                        0 14px 32px rgba(0, 0, 0, 0.28),
+                        0 0 0 1px ${token.colorPrimaryHover} inset;
                 }
             `}</style>
 		</>
