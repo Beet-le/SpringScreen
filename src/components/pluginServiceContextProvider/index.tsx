@@ -70,10 +70,12 @@ export const PluginServiceContextProvider: React.FC<{
 	const initServiceReadyRef = useRef(false);
 	const initPluginConfig = useCallback(async () => {
 		const configDirPath = await getAppConfigBaseDirWithCache();
+		const resourceDir = await path.resourceDir();
 
 		const pluginConfig = new PluginConfig(
 			pluginList,
 			"20251005",
+			await path.join(resourceDir, "plugins"),
 			await path.join(configDirPath, "plugins"),
 			await path.join(configDirPath, "pluginsDownloads"),
 			"https://snowshot.top/plugins/",

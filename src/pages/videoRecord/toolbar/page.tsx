@@ -407,14 +407,18 @@ export const VideoRecordToolbarPage: React.FC = () => {
 
 		videoRecordKill();
 
+		let closeUnlistenFn: (() => void) | undefined;
 		const closeUnlisten = getCurrentWindow().onCloseRequested(async () => {
 			videoRecordKill();
+		});
+		closeUnlisten.then((fn) => {
+			closeUnlistenFn = fn;
 		});
 
 		return () => {
 			videoRecordKill();
 			removeListener(startOrCopyVideoListenerId);
-			closeUnlisten.then((fn) => fn());
+			closeUnlistenFn?.();
 		};
 	}, [
 		addListener,

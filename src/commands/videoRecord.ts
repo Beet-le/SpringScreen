@@ -80,6 +80,7 @@ export const videoRecordGetMicrophoneDeviceNames = async () => {
 
 export const videoRecordInit = async (ffmpegPluginDir: string) => {
 	const result = await invoke("video_record_init", { ffmpegPluginDir });
+	console.log("ffmpegPluginDir路径", ffmpegPluginDir);
 	return result;
 };
 
