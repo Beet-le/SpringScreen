@@ -1,12 +1,14 @@
 use tauri::command;
 use tauri::ipc::Response;
+use tauri::Emitter;
+use tauri::Manager;
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tokio::sync::Mutex;
 
 use snow_shot_app_os::ui_automation::UIElements;
 use snow_shot_app_shared::ElementRect;
 use snow_shot_app_utils::monitor_info::CorrectHdrColorAlgorithm;
-use snow_shot_global_state::WebViewSharedBufferState;
+use snow_shot_global_state::{CaptureState, WebViewSharedBufferState};
 use snow_shot_tauri_commands_screenshot::{CaptureFullScreenResult, WindowElement};
 
 #[command]
@@ -148,4 +150,97 @@ pub async fn capture_full_screen(
         correct_color_filter,
     )
     .await
+}
+
+/// 原子化截图触发：创建窗口 + 设状态 + 发射事件
+/// 仅作为 JS 侧 WebView 冻结时的 Rust 兜底通道，非主链路
+pub async fn trigger_screenshot_core(
+    app: &tauri::AppHandle,
+    screenshot_type: String,
+    window_label: Option<String>,
+    capture_history_id: Option<String>,
+) {
+    let t_total = std::time::Instant::now();
+
+    // 1. 检查是否已在截图中
+    let is_capturing = app.state::<Mutex<CaptureState>>().lock().await.capturing;
+    if is_capturing {
+        log::debug!(
+            "[screenshot-perf] trigger_screenshot_core aborted: already capturing"
+        );
+        return;
+    }
+
+    // 2. 确保 draw 窗口存在
+    let t_window = std::time::Instant::now();
+    let mut target_label = latest_draw_window_label(app);
+    let mut created_new = false;
+    if target_label.is_none() {
+        snow_shot_tauri_commands_screenshot::create_draw_window(app.clone()).await;
+        created_new = true;
+        tokio::time::sleep(std::time::Duration::from_millis(180)).await;
+        target_label = latest_draw_window_label(app);
+    }
+    log::debug!(
+        "[screenshot-perf] draw window ready: {}ms, created_new={}, label={:?}",
+        t_window.elapsed().as_millis(),
+        created_new,
+        target_label
+    );
+
+    // 3. 构建 payload
+    let payload = serde_json::json!({
+        "type": screenshot_type,
+        "windowLabel": window_label,
+        "captureHistoryId": capture_history_id,
+    });
+
+    // 4. 向 draw 窗口 emit，最多重试 3 次 × 200ms（仅兜底，不做大循环）
+    if let Some(label) = target_label {
+        for i in 0..3 {
+            let is_capturing = app.state::<Mutex<CaptureState>>().lock().await.capturing;
+            if is_capturing {
+                log::debug!(
+                    "[screenshot-perf] emit confirmed at retry {}, total: {}ms",
+                    i,
+                    t_total.elapsed().as_millis()
+                );
+                break;
+            }
+
+            let _ = app.emit_to(label.clone(), "execute-screenshot", &payload);
+            log::debug!(
+                "[screenshot-perf] emit retry {}, elapsed: {}ms",
+                i,
+                t_total.elapsed().as_millis()
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        }
+    } else {
+        log::warn!(
+            "[screenshot-perf] no draw window found after creation attempt, total: {}ms",
+            t_total.elapsed().as_millis()
+        );
+    }
+}
+
+pub fn latest_draw_window_label(app: &tauri::AppHandle) -> Option<String> {
+    let mut labels = app
+        .webview_windows()
+        .keys()
+        .filter(|label| label.starts_with("draw-"))
+        .cloned()
+        .collect::<Vec<String>>();
+    labels.sort_unstable();
+    labels.pop()
+}
+
+#[command]
+pub async fn trigger_screenshot(
+    app: tauri::AppHandle,
+    screenshot_type: String,
+    window_label: Option<String>,
+    capture_history_id: Option<String>,
+) {
+    trigger_screenshot_core(&app, screenshot_type, window_label, capture_history_id).await;
 }

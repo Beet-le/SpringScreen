@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use tokio::sync::RwLock;
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -29,3 +30,7 @@ impl ReadClipboardState {
         Self { reading: value }
     }
 }
+
+/// 截图快捷键白名单：shortcut_key → screenshot_type
+/// JS 注册快捷键后同步到 Rust，供 Rust 侧兜底 handler 使用
+pub type ScreenshotShortcutMap = HashMap<String, String>;

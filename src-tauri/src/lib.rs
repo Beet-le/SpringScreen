@@ -31,10 +31,12 @@ use snow_shot_app_services::ocr_service::OcrService;
 use snow_shot_app_services::resize_window_service;
 use snow_shot_app_services::video_record_service;
 use snow_shot_app_shared::EnigoManager;
-use snow_shot_global_state::{CaptureState, ReadClipboardState, WebViewSharedBufferState};
+use snow_shot_global_state::{
+    CaptureState, ReadClipboardState, ScreenshotShortcutMap, WebViewSharedBufferState,
+};
 use snow_shot_plugin_service::plugin_service;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[cfg(feature = "dhat-heap")]
 pub static PROFILER: std::sync::LazyLock<Mutex<Option<dhat::Profiler>>> =
@@ -61,18 +63,6 @@ fn can_trigger_open_draw_now(now_ms: u64) -> bool {
     }
 }
 
-fn latest_draw_window_label(app: &tauri::AppHandle) -> Option<String> {
-    // Pick only the newest draw window and emit to it to avoid broadcast duplication.
-    let mut labels = app
-        .webview_windows()
-        .keys()
-        .filter(|label| label.starts_with("draw-"))
-        .cloned()
-        .collect::<Vec<String>>();
-    labels.sort_unstable();
-    labels.pop()
-}
-
 /// Check whether command line contains `--open-draw`.
 fn has_open_draw_arg(args: &[String]) -> bool {
     args.iter().any(|arg| arg == "--open-draw")
@@ -93,35 +83,7 @@ fn schedule_open_draw(app: tauri::AppHandle) {
     }
 
     tauri::async_runtime::spawn(async move {
-        let capture_state = app.state::<Mutex<CaptureState>>();
-        if !capture_state.lock().await.capturing {
-            let mut target_label = latest_draw_window_label(&app);
-            if target_label.is_none() {
-                // Create the window first, then wait briefly for registration.
-                screenshot::create_draw_window(app.clone()).await;
-                tokio::time::sleep(Duration::from_millis(180)).await;
-                target_label = latest_draw_window_label(&app);
-            }
-
-            if let Some(label) = target_label {
-                // The draw page listener may not be ready immediately after window creation.
-                // Retry longer, but stop as soon as capture has started.
-                for _ in 0..20 {
-                    let is_capturing = app.state::<Mutex<CaptureState>>().lock().await.capturing;
-                    if is_capturing {
-                        break;
-                    }
-
-                    let _ = app.emit_to(
-                        label.clone(),
-                        "execute-screenshot",
-                        serde_json::json!({ "type": "default" }),
-                    );
-
-                    tokio::time::sleep(Duration::from_millis(150)).await;
-                }
-            }
-        }
+        screenshot::trigger_screenshot_core(&app, "default".to_string(), None, None).await;
 
         OPEN_DRAW_TRIGGERING.store(false, Ordering::SeqCst);
     });
@@ -129,6 +91,12 @@ fn schedule_open_draw(app: tauri::AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Layer 2: 必须在任何 WebView2 实例创建前设置环境变量
+    #[cfg(target_os = "windows")]
+    {
+        snow_shot_app_os::efficiency_mode::set_webview2_chromium_args();
+    }
+
     let ocr_instance = Mutex::new(OcrService::new());
     let video_record_service = Mutex::new(video_record_service::VideoRecordService::new());
     let hot_load_page_service = Arc::new(hot_load_page_service::HotLoadPageService::new());
@@ -167,6 +135,8 @@ pub fn run() {
     let webview_shared_buffer_state = WebViewSharedBufferState::new(false);
 
     let read_clipboard_state = Mutex::new(ReadClipboardState { reading: false });
+
+    let screenshot_shortcut_map: Mutex<ScreenshotShortcutMap> = Mutex::new(std::collections::HashMap::new());
 
     use tauri_plugin_log::{Target, TargetKind};
 
@@ -226,7 +196,47 @@ pub fn run() {
         ))
         .plugin(tauri_plugin_clipboard::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(move |app, shortcut, event| {
+                    use tauri_plugin_global_shortcut::ShortcutState;
+                    if event.state != ShortcutState::Pressed {
+                        return;
+                    }
+
+                    let shortcut_str = shortcut.to_string();
+
+                    // 从 Rust 状态中查询该快捷键对应的截图类型
+                    let app_clone = app.clone();
+                    let shortcut_str_clone = shortcut_str.clone();
+                    tauri::async_runtime::spawn(async move {
+                        let t_shortcut = std::time::Instant::now();
+                        let map = app_clone.state::<Mutex<ScreenshotShortcutMap>>();
+                        let screenshot_type = map.lock().await.get(&shortcut_str_clone).cloned();
+
+                        if let Some(screenshot_type) = screenshot_type {
+                            log::debug!(
+                                "[screenshot-perf] Rust shortcut handler fired, shortcut='{}', type={}, lookup: {}ms",
+                                shortcut_str_clone,
+                                screenshot_type,
+                                t_shortcut.elapsed().as_millis()
+                            );
+                            crate::screenshot::trigger_screenshot_core(
+                                &app_clone,
+                                screenshot_type,
+                                None,
+                                None,
+                            )
+                            .await;
+                            log::debug!(
+                                "[screenshot-perf] Rust shortcut trigger_screenshot_core done, total: {}ms",
+                                t_shortcut.elapsed().as_millis()
+                            );
+                        }
+                    });
+                })
+                .build(),
+        )
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_process::init())
@@ -262,12 +272,18 @@ pub fn run() {
 
             #[cfg(target_os = "windows")]
             {
+                // Layer 1: 禁用主进程效能模式
+                snow_shot_app_os::efficiency_mode::disable_main_process_efficiency_mode();
+
                 match main_window.set_decorations(false) {
                     Ok(_) => (),
                     Err(_) => {
                         log::error!("[init_main_window] Failed to set decorations");
                     }
                 }
+
+                // Layer 3: 启动后台进程树扫描守护线程
+                snow_shot_app_os::efficiency_mode::spawn_efficiency_mode_guard();
             }
 
             #[cfg(target_os = "macos")]
@@ -328,6 +344,7 @@ pub fn run() {
         .manage(video_record_window_label)
         .manage(capture_state)
         .manage(read_clipboard_state)
+        .manage(screenshot_shortcut_map)
         .invoke_handler(tauri::generate_handler![
             screenshot::capture_current_monitor,
             screenshot::capture_all_monitors,
@@ -341,6 +358,8 @@ pub fn run() {
             screenshot::switch_always_on_top,
             screenshot::set_draw_window_style,
             screenshot::capture_full_screen,
+            screenshot::trigger_screenshot,
+            global_state::sync_screenshot_shortcuts,
             file::save_file,
             file::write_file,
             file::copy_file,

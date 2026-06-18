@@ -243,6 +243,7 @@ export const clearCanvasAction = async (
 	canvasContainerChildCountRef: RefObject<number>,
 	currentImageTextureRef: RefObject<Texture | undefined>,
 	baseImageTextureRef: RefObject<Texture | undefined>,
+	sharedBufferImageTextureRef?: RefObject<Texture | undefined>,
 ): Promise<undefined> => {
 	return new Promise((resolve) => {
 		if (renderWorker) {
@@ -267,6 +268,7 @@ export const clearCanvasAction = async (
 				canvasContainerChildCountRef,
 				currentImageTextureRef,
 				baseImageTextureRef,
+				sharedBufferImageTextureRef,
 			);
 			resolve(undefined);
 		}

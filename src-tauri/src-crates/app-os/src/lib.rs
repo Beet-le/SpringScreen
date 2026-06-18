@@ -3,6 +3,10 @@ use thiserror::Error;
 #[cfg(target_os = "windows")]
 #[path = "./notification/windows.rs"]
 pub mod notification;
+
+#[cfg(target_os = "windows")]
+#[path = "./efficiency_mode/windows.rs"]
+pub mod efficiency_mode;
 #[cfg(target_os = "linux")]
 #[path = "./notification/linux.rs"]
 pub mod notification;

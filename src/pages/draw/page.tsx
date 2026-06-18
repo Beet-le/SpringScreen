@@ -16,9 +16,8 @@ import React, {
 	useState,
 } from "react";
 import { FormattedMessage, useIntl } from "react-intl";
-import { createDrawWindow, getMousePosition } from "@/commands";
+import { getMousePosition } from "@/commands";
 import {
-	closeWindowAfterDelay,
 	createFixedContentWindow,
 	getMonitorsBoundingBox,
 	setCurrentWindowAlwaysOnTop,
@@ -80,7 +79,7 @@ import {
 	getImagePathFromSettings,
 	showImageDialog,
 } from "@/utils/file";
-import { appError, appWarn } from "@/utils/log";
+import { appDebug, appError, appWarn } from "@/utils/log";
 import { MousePosition } from "@/utils/mousePosition";
 import { ScreenshotType } from "@/utils/types";
 import { setWindowRect, showWindow as showCurrentWindow } from "@/utils/window";
@@ -213,6 +212,11 @@ const DrawPageCore: React.FC<{
 
 	// 状态
 	const drawPageStateRef = useRef<DrawPageState>(DrawPageState.Init);
+	// Init 态暂存的截图事件，等 Active 后自动执行
+	const pendingScreenshotRef = useRef<{
+		type: ScreenshotType;
+		payload: { windowLabel?: string; captureHistoryId?: string };
+	} | null>(null);
 	const mousePositionRef = useRef<MousePosition>(new MousePosition(0, 0));
 	const [getAppSettings] = useStateSubscriber(AppSettingsPublisher, undefined);
 	const { updateAppSettings } = useContext(AppSettingsActionContext);
@@ -440,12 +444,11 @@ const DrawPageCore: React.FC<{
 				return;
 			}
 
-			drawPageStateRef.current = DrawPageState.Release;
-			await Promise.all([
-				createDrawWindow(),
-				// 隔一段时间释放，防止释放中途用户唤起
-				closeWindowAfterDelay(1000 * 3),
-			]);
+			// keep-alive: 直接回到 Active 状态，复用现有 draw 窗口
+			drawPageStateRef.current = DrawPageState.Active;
+			appDebug(
+				"[screenshot-perf] releasePage debounce fired, state reset to Active (keep-alive)",
+			);
 		}, 1000 * 16);
 	}, []);
 
@@ -500,6 +503,7 @@ const DrawPageCore: React.FC<{
 				event: CaptureEvent.onCaptureFinish,
 			});
 			imageBufferRef.current = undefined;
+			pendingScreenshotRef.current = null;
 			resetCaptureStep();
 			resetDrawState();
 			resetScreenshotType();
@@ -633,6 +637,11 @@ const DrawPageCore: React.FC<{
 			excuteScreenshotType: ScreenshotType,
 			params: { windowId?: string; captureHistoryId?: string },
 		) => {
+			const t_exec = performance.now();
+			appDebug(
+				`[screenshot-perf] excuteScreenshot start, type=${excuteScreenshotType}`,
+			);
+
 			capturingRef.current = true;
 			setCaptureStateAction(true);
 			drawToolbarActionRef.current?.setEnable(false);
@@ -661,7 +670,16 @@ const DrawPageCore: React.FC<{
 			} catch {
 				imageBuffer = undefined;
 			}
+			const t_capture = performance.now();
+			appDebug(
+				`[screenshot-perf] captureAllMonitors done: ${(t_capture - t_exec).toFixed(1)}ms`,
+			);
+
 			await initCaptureBoundingBoxInfoPromise;
+			const t_bbox = performance.now();
+			appDebug(
+				`[screenshot-perf] initBoundingBox done: ${(t_bbox - t_capture).toFixed(1)}ms`,
+			);
 
 			// 如果截图失败了，等窗口显示后，结束截图
 			// 切换截图历史时，不进行截图，只进行显示
@@ -698,6 +716,10 @@ const DrawPageCore: React.FC<{
 							})(),
 					layerOnExecuteScreenshotPromise,
 				]);
+				const t_ready = performance.now();
+				appDebug(
+					`[screenshot-perf] readyCapture+layers done: ${(t_ready - t_bbox).toFixed(1)}ms, total: ${(t_ready - t_exec).toFixed(1)}ms`,
+				);
 			} catch (error) {
 				// 防止用户提前退出报错
 				if (getCaptureEvent()?.event !== CaptureEvent.onExecuteScreenshot) {
@@ -1284,6 +1306,7 @@ const DrawPageCore: React.FC<{
 	useEffect(() => {
 		// 监听截图命令
 		const listenerId = addListener("execute-screenshot", (args) => {
+			const t0 = performance.now();
 			const payload = (
 				args as {
 					payload: {
@@ -1294,12 +1317,17 @@ const DrawPageCore: React.FC<{
 				}
 			).payload;
 
+			appDebug(
+				`[screenshot-perf] draw received execute-screenshot event, type=${payload.type}`,
+			);
+
 			// 防止循环调用
 			if (payload.windowLabel === appWindowRef.current?.label) {
 				return;
 			}
 
 			if (capturingRef.current) {
+				appDebug("[screenshot-perf] draw skipped: already capturing");
 				return;
 			}
 
@@ -1309,10 +1337,17 @@ const DrawPageCore: React.FC<{
 			}
 
 			if (drawPageStateRef.current === DrawPageState.Init) {
+				// Init 态暂存事件，等 onInitCanvasReady 后自动执行
+				appDebug(`[screenshot-perf] draw state=Init, queuing screenshot`);
+				pendingScreenshotRef.current = {
+					type: payload.type,
+					payload: payload,
+				};
 				return;
 			} else if (drawPageStateRef.current === DrawPageState.Release) {
 				// 这时候可能窗口还在加载中，每隔一段时间触发下截图
 				// Release 阶段只记录一次待执行截图，避免循环重发。
+				appDebug(`[screenshot-perf] draw state=Release, queuing screenshot`);
 				releaseExecuteScreenshotTimerRef.current = {
 					timer: undefined,
 					type: payload.type,
@@ -1324,6 +1359,9 @@ const DrawPageCore: React.FC<{
 				drawPageStateRef.current = DrawPageState.Active;
 			}
 
+			appDebug(
+				`[screenshot-perf] draw state=Active, dispatching excuteScreenshot, recv_to_dispatch: ${(performance.now() - t0).toFixed(1)}ms`,
+			);
 			excuteScreenshot(payload.type, payload);
 		});
 
@@ -1334,23 +1372,31 @@ const DrawPageCore: React.FC<{
 		const releaseListenerId = addListener("release-draw-page", (args) => {
 			const payload = (args as { payload: { force: boolean } }).payload;
 
-			if (!payload.force) {
-				if (drawPageStateRef.current !== DrawPageState.Release) {
-					return;
-				}
-
-				if (releaseExecuteScreenshotTimerRef.current?.timer) {
-					clearTimeout(releaseExecuteScreenshotTimerRef.current.timer);
-				}
-
-				// release 完成后只执行一次，然后清空。
-				if (releaseExecuteScreenshotTimerRef.current) {
-					executeScreenshotFunc(releaseExecuteScreenshotTimerRef.current.type);
-					releaseExecuteScreenshotTimerRef.current = undefined;
-				}
+			if (payload.force) {
+				// force 模式：强制关闭窗口
+				getCurrentWindow().close();
+				return;
 			}
 
-			getCurrentWindow().close();
+			if (drawPageStateRef.current !== DrawPageState.Release) {
+				return;
+			}
+
+			if (releaseExecuteScreenshotTimerRef.current?.timer) {
+				clearTimeout(releaseExecuteScreenshotTimerRef.current.timer);
+			}
+
+			// release 完成后如果有待执行的截图，触发一次
+			if (releaseExecuteScreenshotTimerRef.current) {
+				executeScreenshotFunc(releaseExecuteScreenshotTimerRef.current.type);
+				releaseExecuteScreenshotTimerRef.current = undefined;
+			}
+
+			// keep-alive: 不关闭窗口，重置为待机状态
+			drawPageStateRef.current = DrawPageState.Active;
+			appDebug(
+				"[screenshot-perf] release-draw-page: keeping window alive, state reset to Active",
+			);
 		});
 
 		return () => {
@@ -1554,8 +1600,16 @@ const DrawPageCore: React.FC<{
 
 	const onInitCanvasReady = useCallback(async () => {
 		drawPageStateRef.current = DrawPageState.Active;
+
+		// 消费 Init 态暂存的截图事件
+		const pending = pendingScreenshotRef.current;
+		pendingScreenshotRef.current = null;
+		if (pending) {
+			excuteScreenshot(pending.type, pending.payload);
+		}
+
 		await releaseDrawPage();
-	}, []);
+	}, [excuteScreenshot]);
 
 	return (
 		<CommonDrawContext.Provider value={commonDrawContextValue}>

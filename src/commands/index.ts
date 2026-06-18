@@ -85,3 +85,19 @@ export const createDrawWindow = async () => {
 	const result = await invoke<void>("create_draw_window");
 	return result;
 };
+
+export const triggerScreenshot = async (
+	screenshotType: string,
+	windowLabel?: string,
+	captureHistoryId?: string,
+) => {
+	await invoke<void>("trigger_screenshot", {
+		screenshotType,
+		windowLabel,
+		captureHistoryId,
+	});
+};
+
+export const syncScreenshotShortcuts = async (map: Record<string, string>) => {
+	await invoke<void>("sync_screenshot_shortcuts", { map });
+};

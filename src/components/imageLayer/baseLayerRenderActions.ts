@@ -88,6 +88,7 @@ export const renderClearCanvasAction = (
 	canvasContainerChildCountRef: RefType<number>,
 	currentImageTextureRef: RefType<PIXI.Texture | undefined>,
 	baseImageTextureRef: RefType<PIXI.Texture | undefined>,
+	sharedBufferImageTextureRef?: RefType<PIXI.Texture | undefined>,
 ) => {
 	const canvasApp = canvasAppRef.current;
 	if (!canvasApp) {
@@ -96,8 +97,18 @@ export const renderClearCanvasAction = (
 	canvasApp.stage.removeChildren();
 	canvasContainerMapRef.current.clear();
 	canvasContainerChildCountRef.current = 0;
+
+	// 销毁纹理释放 GPU 显存，防止内存泄漏
+	currentImageTextureRef.current?.destroy(true);
 	currentImageTextureRef.current = undefined;
+
+	baseImageTextureRef.current?.destroy(true);
 	baseImageTextureRef.current = undefined;
+
+	if (sharedBufferImageTextureRef) {
+		sharedBufferImageTextureRef.current?.destroy(true);
+		sharedBufferImageTextureRef.current = undefined;
+	}
 
 	canvasApp.render();
 };

@@ -20,6 +20,7 @@ import React, {
 	useState,
 } from "react";
 import { FormattedMessage } from "react-intl";
+import { syncScreenshotShortcuts } from "@/commands";
 import {
 	createFixedContentWindow,
 	createFullScreenDrawWindow,
@@ -459,6 +460,35 @@ const GlobalShortcutCore = ({ children }: { children: React.ReactNode }) => {
 					}
 				}),
 			);
+
+			// 同步截图快捷键白名单到 Rust 侧，供兜底 handler 使用
+			const screenshotFunctionToType: Partial<
+				Record<AppFunction, ScreenshotType>
+			> = {
+				[AppFunction.Screenshot]: ScreenshotType.Default,
+				[AppFunction.ScreenshotFixed]: ScreenshotType.Fixed,
+				[AppFunction.ScreenshotDelay]: ScreenshotType.Delay,
+				[AppFunction.ScreenshotOcr]: ScreenshotType.OcrDetect,
+				[AppFunction.ScreenshotOcrTranslate]: ScreenshotType.OcrTranslate,
+				[AppFunction.ScreenshotFullScreen]: ScreenshotType.CaptureFullScreen,
+				[AppFunction.ScreenshotCopy]: ScreenshotType.Copy,
+				[AppFunction.TopWindow]: ScreenshotType.TopWindow,
+				[AppFunction.VideoRecord]: ScreenshotType.VideoRecord,
+			};
+
+			const shortcutMap: Record<string, string> = {};
+			for (const [func, screenshotType] of Object.entries(
+				screenshotFunctionToType,
+			)) {
+				const shortcutKey = settings[func as AppFunction]?.shortcutKey;
+				if (
+					shortcutKey &&
+					keyStatus[func as AppFunction] === ShortcutKeyStatus.Registered
+				) {
+					shortcutMap[shortcutKey] = screenshotType!;
+				}
+			}
+			syncScreenshotShortcuts(shortcutMap);
 
 			setShortcutKeyStatus(keyStatus);
 			previousAppFunctionSettingsRef.current = settings;

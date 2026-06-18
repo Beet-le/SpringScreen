@@ -76,8 +76,9 @@ impl HotLoadPageService {
         .skip_taskbar(true)
         .resizable(false)
         .inner_size(1.0, 1.0)
-        .position(0.0, 0.0)
-        .visible(false)
+        // Keep the standby page technically visible so WebView2 does not background-freeze it.
+        .position(-32000.0, -32000.0)
+        .visible(true)
         .focused(false)
         .build()
         {
@@ -112,7 +113,29 @@ impl HotLoadPageService {
             current_page_list
         };
 
-        if page_limit <= current_page_count {
+        if page_limit == current_page_count {
+            return Ok(());
+        }
+
+        // 多余的窗口需要关闭
+        if page_limit < current_page_count {
+            let excess = current_page_count - page_limit;
+            let keys_to_remove: Vec<String> = self
+                .page_list
+                .iter()
+                .take(excess)
+                .map(|entry| entry.key().to_owned())
+                .collect();
+
+            for key in keys_to_remove {
+                if let Some((_, page)) = self.page_list.remove(&key) {
+                    let _ = page.window.close();
+                    log::info!(
+                        "[HotLoadPageService] Closed excess idle window: {}",
+                        key
+                    );
+                }
+            }
             return Ok(());
         }
 

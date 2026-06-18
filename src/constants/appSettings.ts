@@ -325,7 +325,7 @@ Priority order (highest to lowest):
 	},
 	[AppSettingsGroup.SystemCore]: {
 		/// 热加载页面数量
-		hotLoadPageCount: 2,
+		hotLoadPageCount: 0,
 	},
 	[AppSettingsGroup.FunctionGlobalShortcut]: {
 		disableOnFocusedFullScreenWindow: false,

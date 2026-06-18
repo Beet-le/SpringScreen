@@ -1,7 +1,5 @@
 import { emit } from "@tauri-apps/api/event";
 import * as tauriLog from "@tauri-apps/plugin-log";
-import { createDrawWindow } from "@/commands";
-import { getCaptureState } from "@/commands/globalSate";
 import { captureFocusedWindow } from "@/commands/screenshot";
 import { FOCUS_WINDOW_APP_NAME_ENV_VARIABLE } from "@/constants/components/chat";
 import { type AppSettingsData, AppSettingsGroup } from "@/types/appSettings";
@@ -11,40 +9,21 @@ import { getImagePathFromSettings } from "@/utils/file";
 import { appError } from "@/utils/log";
 import { ScreenshotType } from "@/utils/types";
 
-const SCREENSHOT_WAKE_RETRY_DELAY_MS = 120;
-const SCREENSHOT_WAKE_RETRY_COUNT = 12;
-
-const wait = async (delay: number) => {
-	await new Promise((resolve) => {
-		window.setTimeout(resolve, delay);
-	});
-};
-
 export const executeScreenshot = async (
 	type: ScreenshotType = ScreenshotType.Default,
 	windowLabel?: string,
 	captureHistoryId?: string,
 ) => {
-	// Ensure draw window pool is normalized before broadcasting screenshot event.
-	await createDrawWindow();
-
-	const payload = {
+	const t0 = performance.now();
+	await emit("execute-screenshot", {
 		type,
 		windowLabel,
 		captureHistoryId,
-	};
-
-	for (let index = 0; index < SCREENSHOT_WAKE_RETRY_COUNT; index++) {
-		if ((await getCaptureState()).capturing) {
-			return;
-		}
-
-		await emit("execute-screenshot", payload);
-
-		if (index < SCREENSHOT_WAKE_RETRY_COUNT - 1) {
-			await wait(SCREENSHOT_WAKE_RETRY_DELAY_MS);
-		}
-	}
+	});
+	const elapsed = (performance.now() - t0).toFixed(1);
+	tauriLog.debug(
+		`[screenshot-perf] emit execute-screenshot: ${elapsed}ms, type=${type}`,
+	);
 };
 
 export const executeScreenshotFocusedWindow = async (
