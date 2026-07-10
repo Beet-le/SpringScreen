@@ -217,6 +217,8 @@ const DrawPageCore: React.FC<{
 		type: ScreenshotType;
 		payload: { windowLabel?: string; captureHistoryId?: string };
 	} | null>(null);
+	// keep-alive 待机时 PixiJS GPU 资源是否已释放
+	const canvasDisposedRef = useRef(false);
 	const mousePositionRef = useRef<MousePosition>(new MousePosition(0, 0));
 	const [getAppSettings] = useStateSubscriber(AppSettingsPublisher, undefined);
 	const { updateAppSettings } = useContext(AppSettingsActionContext);
@@ -446,10 +448,17 @@ const DrawPageCore: React.FC<{
 
 			// keep-alive: 直接回到 Active 状态，复用现有 draw 窗口
 			drawPageStateRef.current = DrawPageState.Active;
+
+			// 释放 PixiJS GPU 资源（WebGL 上下文、纹理），减少后台内存占用
+			// PixiJS 代码已在 V8 中缓存，下次截图时重新初始化仅需 ~50-100ms
+			// 3s 足够判断用户是否已退出编辑，避免长时间占据 GPU 内存
+			await imageLayerActionRef.current?.disposeCanvas();
+			canvasDisposedRef.current = true;
+
 			appDebug(
-				"[screenshot-perf] releasePage debounce fired, state reset to Active (keep-alive)",
+				"[screenshot-perf] releasePage debounce fired, state reset to Active (keep-alive), GPU resources disposed",
 			);
-		}, 1000 * 16);
+		}, 1000 * 3);
 	}, []);
 
 	// 防止快速截图的情况下延迟设置 setCaptureState 后覆盖正确的值
@@ -503,6 +512,11 @@ const DrawPageCore: React.FC<{
 				event: CaptureEvent.onCaptureFinish,
 			});
 			imageBufferRef.current = undefined;
+			// 立即释放 Blob URL，避免大块截图数据长时间占据内存
+			if (imageBlobUrlRef.current) {
+				URL.revokeObjectURL(imageBlobUrlRef.current);
+				imageBlobUrlRef.current = undefined;
+			}
 			pendingScreenshotRef.current = null;
 			resetCaptureStep();
 			resetDrawState();
@@ -560,6 +574,16 @@ const DrawPageCore: React.FC<{
 			captureBoundingBox.monitor_rect_list,
 			new MousePosition(mousePosition[0], mousePosition[1]),
 		);
+
+		// keep-alive: 如果 GPU 资源已在待机时释放，重新初始化 PixiJS
+		if (canvasDisposedRef.current) {
+			const t_reinit = performance.now();
+			await imageLayerActionRef.current?.initCanvas(true);
+			canvasDisposedRef.current = false;
+			appDebug(
+				`[screenshot-perf] PixiJS re-init after dispose: ${(performance.now() - t_reinit).toFixed(1)}ms`,
+			);
+		}
 
 		await Promise.all([
 			getScreenshotType()?.type === ScreenshotType.Delay

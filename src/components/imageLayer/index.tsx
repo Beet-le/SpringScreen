@@ -196,6 +196,10 @@ export type ImageLayerActionType = {
 		canvasWidth: number,
 		canvasHeight: number,
 	) => Promise<void>;
+	/**
+	 * 释放 PixiJS GPU 资源（WebGL 上下文、纹理等），用于 keep-alive 待机时减少内存占用
+	 */
+	disposeCanvas: () => Promise<void>;
 };
 
 export type ImageLayerProps = {
@@ -803,9 +807,8 @@ export const ImageLayer: React.FC<ImageLayerProps> = ({
 		}
 	}, [enable]);
 
-	useImperativeHandle(
-		actionRef,
-		() => ({
+	useImperativeHandle(actionRef, () => {
+		return {
 			resizeCanvas,
 			clearCanvas,
 			getLayerContainerElement,
@@ -836,39 +839,9 @@ export const ImageLayer: React.FC<ImageLayerProps> = ({
 			transferImageSharedBuffer,
 			renderImageSharedBufferToPng,
 			applyProcessImageConfigToCanvas,
-		}),
-		[
-			resizeCanvas,
-			clearCanvas,
-			getLayerContainerElement,
-			createNewCanvasContainer,
-			getImageBitmap,
-			renderToCanvas,
-			renderToPng,
-			initCanvas,
-			changeCursor,
-			canvasRender,
-			addImageToContainer,
-			clearContainer,
-			createBlurSprite,
-			updateBlurSprite,
-			deleteBlurSprite,
-			updateWatermarkSprite,
-			updateHighlightElement,
-			updateHighlight,
-			clearContext,
-			switchCaptureHistory,
-			onCaptureFinish,
-			onCaptureBoundingBoxInfoReady,
-			onExecuteScreenshot,
-			onCaptureReady,
-			onCaptureLoad,
-			initBaseImageTexture,
-			transferImageSharedBuffer,
-			renderImageSharedBufferToPng,
-			applyProcessImageConfigToCanvas,
-		],
-	);
+			disposeCanvas,
+		};
+	});
 
 	return (
 		<>
