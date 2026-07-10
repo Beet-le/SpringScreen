@@ -208,7 +208,7 @@ export const getVideoRecordSaveDirectory = async (
 		appSettings[AppSettingsGroup.FunctionVideoRecord].saveDirectory;
 
 	if (!savePath) {
-		savePath = await joinPath(await videoDir(), "Snow Shot");
+		savePath = await joinPath(await videoDir(), "SpringScreen");
 	}
 
 	return savePath;
