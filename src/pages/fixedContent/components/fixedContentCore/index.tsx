@@ -2281,6 +2281,76 @@ const FixedContentCoreInner: React.FC<{
 		tryInitImageLayer,
 	]);
 
+	// 方向键移动固定图片窗口
+	// 仅在图片/画布模式下启用，单击移动 1px，长按逐步加速
+	useEffect(() => {
+		if (
+			disabled ||
+			enableDraw ||
+			isThumbnail ||
+			!(
+				fixedContentType === FixedContentType.DrawCanvas ||
+				fixedContentType === FixedContentType.Image
+			)
+		) {
+			return;
+		}
+
+		const ACCELERATION_INTERVAL = 200; // 每 200ms 加速一次
+		const MAX_SPEED = 20; // 最大移动速度 px/帧
+
+		const pressStartTimes = new Map<string, number>();
+
+		const getMoveStep = (key: string): number => {
+			const startTime = pressStartTimes.get(key) ?? Date.now();
+			const duration = Date.now() - startTime;
+			return Math.min(
+				Math.floor(duration / ACCELERATION_INTERVAL) + 1,
+				MAX_SPEED,
+			);
+		};
+
+		const handleKeyDown = async (e: KeyboardEvent) => {
+			const arrowKeys = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+			if (!arrowKeys.includes(e.key)) return;
+			e.preventDefault();
+
+			const appWindow = appWindowRef.current;
+			if (!appWindow) return;
+
+			// 首次按下记录时间戳
+			if (!e.repeat) {
+				pressStartTimes.set(e.key, Date.now());
+			}
+
+			const step = getMoveStep(e.key);
+			const position = await appWindow.outerPosition();
+
+			let dx = 0;
+			let dy = 0;
+			if (e.key === "ArrowUp") dy = -step;
+			else if (e.key === "ArrowDown") dy = step;
+			else if (e.key === "ArrowLeft") dx = -step;
+			else if (e.key === "ArrowRight") dx = step;
+
+			appWindow.setPosition(
+				new PhysicalPosition(position.x + dx, position.y + dy),
+			);
+		};
+
+		const handleKeyUp = (e: KeyboardEvent) => {
+			pressStartTimes.delete(e.key);
+		};
+
+		document.addEventListener("keydown", handleKeyDown);
+		document.addEventListener("keyup", handleKeyUp);
+
+		return () => {
+			document.removeEventListener("keydown", handleKeyDown);
+			document.removeEventListener("keyup", handleKeyUp);
+		};
+	}, [disabled, enableDraw, isThumbnail, fixedContentType]);
+
 	useHotkeys(
 		hotkeys?.[CommonKeyEventKey.FixedContentSwitchThumbnail]?.hotKey ?? "",
 		switchThumbnail,
