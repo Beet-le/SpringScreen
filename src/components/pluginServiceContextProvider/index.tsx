@@ -8,7 +8,7 @@ import {
 	pluginRegisterPlugin,
 } from "@/commands/plugin";
 import {
-	PLUGIN_ID_AI_CHAT,
+	// PLUGIN_ID_AI_CHAT, // AI 对话功能已禁用
 	PLUGIN_ID_FFMPEG,
 	PLUGIN_ID_RAPID_OCR,
 	PLUGIN_ID_TRANSLATE,
@@ -47,10 +47,11 @@ export const PluginServiceContextProvider: React.FC<{
 				id: PLUGIN_ID_TRANSLATE,
 				file_list: [],
 			},
-			{
-				id: PLUGIN_ID_AI_CHAT,
-				file_list: [],
-			},
+			// AI 对话功能已禁用
+			// {
+			// 	id: PLUGIN_ID_AI_CHAT,
+			// 	file_list: [],
+			// },
 		];
 	}, []);
 

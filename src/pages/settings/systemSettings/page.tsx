@@ -17,7 +17,7 @@ import {
 	Form,
 	Row,
 	type SelectProps,
-	Slider,
+	// Slider, // AI 对话功能已禁用
 	Space,
 	Spin,
 	Switch,
@@ -839,7 +839,8 @@ export const SystemSettingsPage = () => {
 				</ProForm>
 			</Spin>
 
-			<Divider />
+			{/* AI 对话功能已禁用 */}
+			{/* <Divider />
 
 			<GroupTitle
 				id="chatSettings"
@@ -944,7 +945,7 @@ export const SystemSettingsPage = () => {
 				</ProForm>
 			</Spin>
 
-			<Divider />
+			<Divider /> */}
 
 			<GroupTitle
 				id="coreSettings"
