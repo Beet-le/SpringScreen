@@ -88,7 +88,8 @@ pub async fn scroll_through(
         ));
     }
 
-    time::sleep(time::Duration::from_millis(10)).await;
+    // 等待一帧让 ignore 生效
+    time::sleep(time::Duration::from_millis(16)).await;
 
     {
         match enigo.scroll(length, Axis::Vertical) {
@@ -99,7 +100,9 @@ pub async fn scroll_through(
         }
     }
 
-    time::sleep(time::Duration::from_millis(128)).await;
+    // 等待一帧让滚动渲染完成，然后立即恢复事件捕获，
+    // 避免长时间 ignore 导致自然滚轮事件不受控穿透
+    time::sleep(time::Duration::from_millis(32)).await;
     let _ = window.set_ignore_cursor_events(false);
 
     Ok(())

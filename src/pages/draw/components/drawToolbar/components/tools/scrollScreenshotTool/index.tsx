@@ -232,6 +232,9 @@ export const ScrollScreenshot: React.FC<{
 	);
 
 	const lastCaptureMissHideRef = useRef<MessageType | undefined>(undefined);
+	// 连续匹配失败的计数器，只有连续失败达到阈值才提示用户
+	const consecutiveMissCount = useRef(0);
+	const CONSECUTIVE_MISS_THRESHOLD = 3;
 
 	const pendingEnableAutoScrollThroughClickRef = useRef<boolean>(false);
 	const setPendingEnableAutoScrollThroughClickRef = useRef<
@@ -331,12 +334,21 @@ export const ScrollScreenshot: React.FC<{
 			captureResult.edge_position === 0 &&
 			captureResult.thumbnail_buffer === undefined
 		) {
+			// 无变化不算失败，重置计数器
+			consecutiveMissCount.current = 0;
 			return needContinue;
 		} else if (captureResult.edge_position === undefined) {
-			showCaptureMissMessage();
+			// 连续多次匹配失败才提示用户，避免偶发匹配失败就中断流程
+			consecutiveMissCount.current++;
+			if (consecutiveMissCount.current >= CONSECUTIVE_MISS_THRESHOLD) {
+				showCaptureMissMessage();
+				consecutiveMissCount.current = 0;
+			}
 			return needContinue;
 		}
 
+		// 匹配成功，重置计数器
+		consecutiveMissCount.current = 0;
 		noChangeCount.current = 0;
 		updateImageUrlList(captureResult);
 
@@ -499,7 +511,9 @@ export const ScrollScreenshot: React.FC<{
 				const appWindow = getCurrentWindow();
 				appWindow.setIgnoreCursorEvents(false);
 			},
-			128 + 128 + 16,
+			// 冗余安全网：延迟恢复事件捕获，
+			// 比 scrollThrough 的 ignore 窗口 (16ms + 32ms) 留有足够余量
+			200,
 		);
 	}, []);
 
@@ -639,6 +653,8 @@ export const ScrollScreenshot: React.FC<{
 		enableScrollThroughRef.current = false;
 		releaseImageUrlList();
 		setPositionRect(undefined);
+		consecutiveMissCount.current = 0;
+		noChangeCount.current = 0;
 
 		const selectRect = selectLayerActionRef.current?.getSelectRect();
 		if (!selectRect) {

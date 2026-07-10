@@ -588,6 +588,7 @@ impl ScrollScreenshotService {
         image_descriptors: &[Vec<f32>],
         image_corners: &[ScrollOffset],
         scroll_image_list: ScrollImageList,
+        relaxed: bool,
     ) -> (Option<(&'a ScrollIndex, usize, usize)>, bool) {
         let image_scroll_side_size = if self.current_direction == ScrollDirection::Vertical {
             self.image_height as i32
@@ -601,6 +602,11 @@ impl ScrollScreenshotService {
         };
 
         let min_diff_count = AtomicUsize::new(0);
+
+        // 宽松模式下使用更大的距离阈值，以应对快速滚动导致的重叠区域减小
+        let dist_threshold = if relaxed { 0.5 } else { 0.1 };
+        // 宽松模式下放宽方向过滤器阈值
+        let min_diff_ratio = if relaxed { 0.88 } else { 0.72 };
 
         let offsets: Vec<(i32, &'a ScrollIndex, usize, usize)> = image_descriptors
             .par_iter()
@@ -643,7 +649,7 @@ impl ScrollScreenshotService {
                     return None;
                 }
 
-                if dist < 0.1 {
+                if dist < dist_threshold {
                     Some((diff, index, idx1, i))
                 } else {
                     None
@@ -651,7 +657,9 @@ impl ScrollScreenshotService {
             })
             .collect();
 
-        if min_diff_count.load(Ordering::Relaxed) > (image_corners.len() as f32 * 0.72) as usize {
+        if min_diff_count.load(Ordering::Relaxed)
+            > (image_corners.len() as f32 * min_diff_ratio) as usize
+        {
             return (None, true);
         }
 
@@ -673,16 +681,6 @@ impl ScrollScreenshotService {
             }
         }
 
-        // let mut sorted_offsets: Vec<_> = offset_counts.iter().collect();
-        // sorted_offsets.sort_by_key(|(_, (count, _, _, _))| -count);
-        // println!(
-        //     "sorted_offsets: {:?}",
-        //     sorted_offsets[..10.min(sorted_offsets.len())]
-        //         .iter()
-        //         .map(|(offset, (count, _, _, _))| (offset, count))
-        //         .collect::<Vec<_>>()
-        // );
-
         let mut max_count = 0;
         let mut second_max_count = 0;
         let mut max_offset = None;
@@ -702,11 +700,19 @@ impl ScrollScreenshotService {
             None => return (None, false),
         };
 
-        if max_count < (image_corners.len() as i32 / 10) {
+        // 宽松模式下降低共识阈值
+        let min_consensus = if relaxed {
+            (image_corners.len() as i32 / 20).max(3)
+        } else {
+            image_corners.len() as i32 / 10
+        };
+        if max_count < min_consensus {
             return (None, false);
         }
 
-        if max_count < second_max_count * 2 {
+        // 宽松模式下降低主导性要求
+        let dominance_ratio = if relaxed { 3.0 / 2.0 } else { 2.0 };
+        if (max_count as f32) < (second_max_count as f32 * dominance_ratio) {
             return (None, false);
         }
 
@@ -800,13 +806,14 @@ impl ScrollScreenshotService {
             &self.bottom_image_ann_index
         };
 
-        // 从边缘遍历
+        // 从边缘遍历（严格模式）
         let mut offsets;
         let (first_offsets, is_origin) = self.get_offsets(
             first_index,
             &image_descriptors,
             &image_corners,
             scroll_image_list,
+            false,
         );
 
         if is_origin {
@@ -834,6 +841,7 @@ impl ScrollScreenshotService {
                 &image_descriptors,
                 &image_corners,
                 second_scroll_image_list,
+                false,
             );
 
             if is_origin {
@@ -843,6 +851,51 @@ impl ScrollScreenshotService {
             result_scroll_image_list = second_scroll_image_list;
 
             offsets = second_offsets;
+        }
+
+        // 严格匹配失败时，用宽松模式重试第一个方向
+        if offsets.is_none() {
+            let (relaxed_offsets, is_origin) = self.get_offsets(
+                first_index,
+                &image_descriptors,
+                &image_corners,
+                scroll_image_list,
+                true,
+            );
+
+            if !is_origin {
+                offsets = relaxed_offsets;
+            }
+        }
+
+        // 宽松模式仍失败，且允许回滚，尝试另一个方向
+        if offsets.is_none() && self.try_rollback {
+            let second_index = if scroll_image_list == ScrollImageList::Top {
+                &self.bottom_image_ann_index
+            } else {
+                &self.top_image_ann_index
+            };
+
+            let second_scroll_image_list = if scroll_image_list == ScrollImageList::Top {
+                ScrollImageList::Bottom
+            } else {
+                ScrollImageList::Top
+            };
+
+            let (relaxed_offsets, is_origin) = self.get_offsets(
+                second_index,
+                &image_descriptors,
+                &image_corners,
+                second_scroll_image_list,
+                true,
+            );
+
+            if is_origin {
+                return (None, true, result_scroll_image_list);
+            }
+
+            result_scroll_image_list = second_scroll_image_list;
+            offsets = relaxed_offsets;
         }
 
         if offsets.is_none() {
