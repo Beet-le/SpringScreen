@@ -640,6 +640,11 @@ export const FunctionSettingsPage = () => {
 		SelectProps["options"]
 	>([]);
 	useEffect(() => {
+		// AI 对话功能已禁用时，跳过获取官方模型列表
+		if (!isReadyStatus?.(PLUGIN_ID_AI_CHAT)) {
+			return;
+		}
+
 		getVisionModelList().then((visionModelList) => {
 			const officialVisionModelList = visionModelList.filter(
 				(model) => model.isOfficial,
@@ -686,7 +691,7 @@ export const FunctionSettingsPage = () => {
 
 			setHtmlVisionModelOptions(htmlVisionModelOptions);
 		});
-	}, [getVisionModelList, intl]);
+	}, [getVisionModelList, intl, isReadyStatus]);
 
 	const doubleClickActionOptions = useMemo(() => {
 		return [

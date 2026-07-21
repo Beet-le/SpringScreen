@@ -173,7 +173,6 @@ export const InitService = () => {
 
 		if (isReadyStatus?.(PLUGIN_ID_FFMPEG)) {
 			hasInitVideoRecord.current = true;
-
 			if (pluginConfigRef.current) {
 				pluginConfigRef.current
 					.getPluginDirPath(PLUGIN_ID_FFMPEG)

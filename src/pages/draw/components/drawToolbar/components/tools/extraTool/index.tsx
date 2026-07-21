@@ -6,22 +6,13 @@ import { createVideoRecordWindow } from "@/commands/core";
 import { DrawStatePublisher } from "@/components/drawCore/extra";
 import { VideoRecordIcon } from "@/components/icons";
 import { PLUGIN_ID_FFMPEG } from "@/constants/pluginService";
-import {
-	AppSettingsActionContext,
-	AppSettingsPublisher,
-} from "@/contexts/appSettingsActionContext";
 import { usePluginServiceContext } from "@/contexts/pluginServiceContext";
 import { useStateSubscriber } from "@/hooks/useStateSubscriber";
 import { DrawContext } from "@/pages/draw/types";
-import {
-	type AppSettingsData,
-	AppSettingsGroup,
-	ExtraToolList,
-} from "@/types/appSettings";
+import { ExtraToolList } from "@/types/appSettings";
 import { DrawState } from "@/types/draw";
 import { getPlatform } from "@/utils/platform";
 import { getButtonTypeByState } from "../../../extra";
-import { ToolbarPopover } from "../../toolbarPopover";
 
 export const ExtraTool: React.FC<{
 	onToolClickAction: (tool: DrawState) => void;
@@ -30,19 +21,8 @@ export const ExtraTool: React.FC<{
 	const intl = useIntl();
 	const { token } = theme.useToken();
 
-	const { updateAppSettings } = useContext(AppSettingsActionContext);
 	const { captureBoundingBoxInfoRef, selectLayerActionRef, finishCapture } =
 		useContext(DrawContext);
-
-	const [lastActiveTool, setLastActiveTool] = useState<ExtraToolList>(
-		ExtraToolList.None,
-	);
-	useStateSubscriber(
-		AppSettingsPublisher,
-		useCallback((settings: AppSettingsData) => {
-			setLastActiveTool(settings[AppSettingsGroup.Cache].lastExtraTool);
-		}, []),
-	);
 
 	const [activeTool, setActiveTool] = useState<ExtraToolList>(
 		ExtraToolList.None,
@@ -87,21 +67,6 @@ export const ExtraTool: React.FC<{
 		}, 0);
 	}, [captureBoundingBoxInfoRef, finishCapture, intl, selectLayerActionRef]);
 
-	const updateLastActiveTool = useCallback(
-		(value: ExtraToolList) => {
-			updateAppSettings(
-				AppSettingsGroup.Cache,
-				{ lastExtraTool: value },
-				true,
-				true,
-				false,
-				true,
-				false,
-			);
-		},
-		[updateAppSettings],
-	);
-
 	useStateSubscriber(
 		DrawStatePublisher,
 		useCallback(
@@ -113,10 +78,8 @@ export const ExtraTool: React.FC<{
 				) {
 					if (drawState === DrawState.ScanQrcode) {
 						executeScanQrcode();
-						updateLastActiveTool(ExtraToolList.ScanQrcode);
 					} else if (drawState === DrawState.VideoRecord) {
 						executeVideoRecord();
-						updateLastActiveTool(ExtraToolList.VideoRecord);
 					}
 
 					setEnabled(true);
@@ -125,7 +88,7 @@ export const ExtraTool: React.FC<{
 					setEnabled(false);
 				}
 			},
-			[executeScanQrcode, executeVideoRecord, updateLastActiveTool],
+			[executeScanQrcode, executeVideoRecord],
 		),
 	);
 
@@ -157,31 +120,10 @@ export const ExtraTool: React.FC<{
 
 	const { isReadyStatus } = usePluginServiceContext();
 
-	let mainToolbarButton = isReadyStatus?.(PLUGIN_ID_FFMPEG)
-		? videoRecordButton
-		: scanQrcodeButton;
-
-	if (lastActiveTool === ExtraToolList.ScanQrcode) {
-		mainToolbarButton = scanQrcodeButton;
-	} else if (
-		lastActiveTool === ExtraToolList.VideoRecord &&
-		isReadyStatus?.(PLUGIN_ID_FFMPEG)
-	) {
-		mainToolbarButton = videoRecordButton;
-	}
-
 	return (
-		<ToolbarPopover
-			trigger={isReadyStatus?.(PLUGIN_ID_FFMPEG) ? "hover" : []}
-			content={
-				<Flex align="center" gap={token.paddingXS} className="popover-toolbar">
-					{scanQrcodeButton}
-
-					{isReadyStatus?.(PLUGIN_ID_FFMPEG) && videoRecordButton}
-				</Flex>
-			}
-		>
-			<div>{mainToolbarButton}</div>
-		</ToolbarPopover>
+		<Flex align="center" gap={token.paddingXS}>
+			{scanQrcodeButton}
+			{isReadyStatus?.(PLUGIN_ID_FFMPEG) && videoRecordButton}
+		</Flex>
 	);
 };
