@@ -21,6 +21,7 @@ import {
 	createFixedContentWindow,
 	getMonitorsBoundingBox,
 	setCurrentWindowAlwaysOnTop,
+	trimProcessWorkingSet,
 } from "@/commands/core";
 import { setCaptureState } from "@/commands/globalSate";
 import { listenKeyStart, listenKeyStop } from "@/commands/listenKey";
@@ -454,6 +455,12 @@ const DrawPageCore: React.FC<{
 			// 3s 足够判断用户是否已退出编辑，避免长时间占据 GPU 内存
 			await imageLayerActionRef.current?.disposeCanvas();
 			canvasDisposedRef.current = true;
+
+			// GPU 资源已释放，主动裁剪进程树工作集回收物理内存（仅 Windows 生效）
+			// 不冻结进程，不影响 --open-draw 秒唤起
+			trimProcessWorkingSet().catch((error) => {
+				appError("[DrawPageCore] trimProcessWorkingSet error", error);
+			});
 
 			appDebug(
 				"[screenshot-perf] releasePage debounce fired, state reset to Active (keep-alive), GPU resources disposed",

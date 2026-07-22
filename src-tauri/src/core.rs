@@ -493,3 +493,18 @@ pub async fn set_window_rect(
 
     Ok(())
 }
+
+/// 裁剪进程树工作集，回收物理内存（Windows）。
+/// 在截图窗口 keep-alive 待机、GPU 资源释放后调用，降低内存占用且不冻结进程。
+#[command]
+pub async fn trim_process_working_set() -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        // 放到阻塞线程执行，避免进程快照遍历阻塞异步运行时
+        tauri::async_runtime::spawn_blocking(|| {
+            snow_shot_app_os::efficiency_mode::trim_working_set_for_process_tree();
+        });
+    }
+
+    Ok(())
+}

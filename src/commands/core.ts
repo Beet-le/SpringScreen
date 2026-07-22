@@ -257,3 +257,12 @@ export const setWindowRect = async (
 	const result = await invoke("set_window_rect", { minX, minY, maxX, maxY });
 	return result;
 };
+
+/**
+ * 裁剪进程树工作集，回收物理内存（仅 Windows 生效）。
+ * 在截图窗口 keep-alive 待机、GPU 资源释放后调用，不会冻结进程。
+ */
+export const trimProcessWorkingSet = async () => {
+	const result = await invoke<void>("trim_process_working_set");
+	return result;
+};
