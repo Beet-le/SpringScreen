@@ -325,8 +325,8 @@ Priority order (highest to lowest):
 	},
 	[AppSettingsGroup.SystemCore]: {
 		/// 热加载页面数量
-		// 默认值由 2 下调为 1：每个热加载页都是一个常驻的 WebView2 渲染进程，
-		// 降到 1 可显著减少待机内存占用（可在设置中按需调高）
+		// 默认值为 1：每个热加载页都是一个常驻的 WebView2 渲染进程，
+		// 增加会提高内存占用（可在设置中按需调整）
 		hotLoadPageCount: 1,
 	},
 	[AppSettingsGroup.FunctionGlobalShortcut]: {

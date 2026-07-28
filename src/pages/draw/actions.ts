@@ -291,7 +291,8 @@ export const fixedToScreen = async (
 	);
 
 	setCaptureStep(CaptureStep.Fixed);
-	createDrawWindow();
+	// await 确保新 draw 窗口创建完成后再继续，避免窗口创建与后续操作竞态
+	await createDrawWindow();
 	showFixedContent();
 
 	const [canvas] = await Promise.all([

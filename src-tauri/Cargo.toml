@@ -1,19 +1,23 @@
+# ============================================================
+# Snow Shot - Cargo 工作空间配置
+# ============================================================
+
 [workspace]
 members = [
-    "src-crates/app-shared",
-    "src-crates/app-utils",
-    "src-crates/app-services",
-    "src-crates/app-scroll-screenshot-service",
-    "src-crates/app-os",
-    "src-crates/global_state",
-    "src-crates/tauri-commands/core",
-    "src-crates/tauri-commands/file",
-    "src-crates/tauri-commands/ocr",
-    "src-crates/tauri-commands/screenshot",
-    "src-crates/tauri-commands/scroll-screenshot",
-    "src-crates/tauri-commands/http-service",
-    "src-crates/webview",
-    "src-crates/http-services",
+    "src-crates/app-shared",                     # 共享数据类型
+    "src-crates/app-utils",                      # 工具函数（图像处理、窗口操作）
+    "src-crates/app-services",                   # 服务层（热加载、键盘监听、OCR、录屏等）
+    "src-crates/app-scroll-screenshot-service",  # 滚动截图服务
+    "src-crates/app-os",                         # 平台相关操作（Windows/macOS 效能模式、自启动任务等）
+    "src-crates/global_state",                   # 全局状态定义
+    "src-crates/tauri-commands/core",            # Tauri IPC 命令：核心功能
+    "src-crates/tauri-commands/file",            # Tauri IPC 命令：文件操作
+    "src-crates/tauri-commands/ocr",             # Tauri IPC 命令：OCR
+    "src-crates/tauri-commands/screenshot",      # Tauri IPC 命令：截图
+    "src-crates/tauri-commands/scroll-screenshot", # Tauri IPC 命令：滚动截图
+    "src-crates/tauri-commands/http-service",    # Tauri IPC 命令：HTTP/云上传
+    "src-crates/webview",                        # WebView 共享缓冲区（GPU 零拷贝）
+    "src-crates/http-services",                  # HTTP 服务
 ]
 
 [package]
@@ -25,12 +29,11 @@ repository = "https://github.com/mg-chao/snow-shot"
 edition = "2024"
 rust-version = "1.90"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [lib]
 name = "snow_shot_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+# 可执行文件入口（二进制名称：SpringScreen.exe）
 [[bin]]
 name = "SpringScreen"
 path = "src/main.rs"
@@ -38,17 +41,21 @@ path = "src/main.rs"
 [build-dependencies]
 tauri-build = { version = "^2", features = [] }
 
+# ============================================================
+# 工作空间级依赖声明（各 crate 可引用）
+# ============================================================
+
 [workspace.dependencies]
 serde = { version = "^1.0", features = ["derive"] }
 serde_json = "^1.0"
-# xcap = { path = "D:/my-workspace/xcap" }
+# xcap: 屏幕截图底层库（使用 mg-chao 的自定义分支）
 xcap = { git = "https://github.com/mg-chao/xcap", branch = "custom/master" }
-# xcap = { git = "https://github.com/mg-chao/xcap", branch = "custom/master" }
-# device_query = "4.0.1"
+# device_query: 键盘/鼠标输入监听库
 device_query = { git = "https://github.com/mg-chao/device_query", branch = "custom/master" }
 log = "^0.4"
 image = { version = "^0.25", features = ["png", "webp"] }
 imageproc = "^0.25"
+# enigo: 跨平台键盘鼠标模拟库（用于滚轮穿透等功能）
 enigo = "0.6.1"
 tokio = { version = "1.47.1", features = ["default", "macros", "time"] }
 tauri = { version = "^2.8" }
@@ -57,10 +64,12 @@ rayon = "^1.10"
 regex = "^1.11"
 zune-jpegxl = "^0.4"
 zune-core = "0.4"
+# scap: macOS 屏幕捕获库
 scap = { git = "https://github.com/mg-chao/scap", branch = "20250712_custom" }
 objc2 = "0.6.1"
 objc2-app-kit = { version = "0.3.1" }
 objc2-foundation = { version = "0.3.1" }
+# uiautomation: Windows UI Automation 客户端（用于自动框选元素）
 uiautomation = "0.24.0"
 macos-accessibility-client = "0.0.1"
 dashmap = "6.1.0"
@@ -73,7 +82,7 @@ base64 = "^0.22"
 tauri-plugin-clipboard-manager = "^2"
 clipboard-win = "5.4.1"
 
-# 项目内依赖
+# 项目内依赖（workspace 成员 crate）
 snow-shot-app-services = { path = "src-crates/app-services" }
 snow-shot-app-os = { path = "src-crates/app-os" }
 snow-shot-app-utils = { path = "src-crates/app-utils" }
@@ -112,27 +121,27 @@ snow-shot-global-state = { workspace = true }
 tokio = { workspace = true }
 log = { workspace = true }
 
-# tauri 相关
+# Tauri 核心及官方插件
 tauri = { workspace = true, features = [
-    "protocol-asset",
-    "macos-private-api",
-    "tray-icon",
-    "image-ico",
-    "image-png",
+    "protocol-asset",     # 自定义协议加载静态资源
+    "macos-private-api",  # macOS 私有 API 支持
+    "tray-icon",          # 系统托盘功能
+    "image-ico",          # ICO 图标格式支持
+    "image-png",          # PNG 图片格式支持
 ] }
 tauri-build = "^2"
-tauri-plugin-log = "^2"
-tauri-plugin-fs = "^2"
-tauri-plugin-dialog = "^2"
-tauri-plugin-http = "^2"
-tauri-plugin-store = "^2"
-tauri-plugin-clipboard-manager = { workspace = true }
-tauri-plugin-opener = "^2"
-tauri-plugin-clipboard = "^2"
-tauri-plugin-process = "^2"
-tauri-plugin-notification = "^2"
-tauri-plugin-os = "^2"
-tauri-plugin-macos-permissions = "2.3.0"
+tauri-plugin-log = "^2"               # 日志插件
+tauri-plugin-fs = "^2"                # 文件系统访问
+tauri-plugin-dialog = "^2"            # 系统对话框
+tauri-plugin-http = "^2"              # HTTP 客户端
+tauri-plugin-store = "^2"             # 持久化 KV 存储
+tauri-plugin-clipboard-manager = { workspace = true }  # 剪贴板管理
+tauri-plugin-opener = "^2"            # 系统默认程序打开文件/URL
+tauri-plugin-clipboard = "^2"         # 剪贴板读写
+tauri-plugin-process = "^2"           # 进程管理
+tauri-plugin-notification = "^2"      # 系统通知
+tauri-plugin-os = "^2"                # 操作系统信息
+tauri-plugin-macos-permissions = "2.3.0"  # macOS 权限请求
 
 
 # 其他依赖
@@ -140,26 +149,38 @@ base64 = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 
+# 桌面平台专属插件（非移动端）
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
-tauri-plugin-autostart = "2"
-tauri-plugin-global-shortcut = "^2"
-tauri-plugin-single-instance = "2"
-tauri-plugin-updater = "2"
-tauri-plugin-window-state = "2"
+tauri-plugin-autostart = "2"          # 自启动管理（注册表/LaunchAgent）
+tauri-plugin-global-shortcut = "^2"   # 全局快捷键（Rust 侧直达兜底通道）
+tauri-plugin-single-instance = "2"    # 单实例互斥锁（防止多开，识别主/次实例）
+tauri-plugin-updater = "2"            # 应用更新器
+tauri-plugin-window-state = "2"       # 窗口状态持久化（位置、大小）
 
+# Windows 平台专属依赖
 [target.'cfg(any(target_os = "windows"))'.dependencies]
+windows-sys = { version = "0.60", features = [
+    "Win32_System_Threading",   # OpenMutexW, WaitForSingleObject（单实例互斥锁预检查）
+    "Win32_Foundation",         # CloseHandle, HANDLE
+] }
 
-# dhat = "0.3.3"
+# dhat = "0.3.3"  # 堆内存分析工具（仅调试用，默认禁用）
+
+# ============================================================
+# 编译配置
+# ============================================================
 
 [profile.dev]
-incremental = true
-opt-level = 0
-debug = true
+incremental = true    # 增量编译
+opt-level = 0         # 不优化（主 crate）
+debug = true          # 带调试符号
 
+# 依赖包统一优化到 opt-level=2 加快开发编译速度
 [profile.dev.package."*"]
 opt-level = 2
 debug = false
 
+# 以下为 workspace 成员单独配置：opt-level=2 但保留 debug 信息
 [profile.dev.package.snow-shot-app-services]
 [profile.dev.package.snow-shot-app-os]
 [profile.dev.package.snow-shot-app-utils]
@@ -175,20 +196,21 @@ debug = false
 opt-level = 2
 debug = true
 
+# Release 构建：最大化性能 + 最小化体积
 [profile.release]
-opt-level = 3
+opt-level = 3          # LTO + 最高优化级别
 debug = false
 debug-assertions = false
-overflow-checks = false
-lto = "fat"
-panic = "abort"
+overflow-checks = false # 关闭整数溢出检查（性能优先）
+lto = "fat"            # 全链接时优化
+panic = "abort"        # panic 时直接终止（减小体积）
 incremental = false
-codegen-units = 1
-strip = true
+codegen-units = 1      # 单代码生成单元（更好的内联优化）
+strip = true           # 剥离符号表
 
 # [profile.release]
 # debug = 1
 
 [features]
-dhat-heap = []   # if you are doing heap profiling
-dhat-ad-hoc = [] # if you are doing ad hoc profiling
+dhat-heap = []   # 启用 dhat 堆内存分析
+dhat-ad-hoc = [] # 启用 dhat 临时性能分析

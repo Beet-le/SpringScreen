@@ -156,14 +156,32 @@ import {
 	type DrawContextType,
 } from "./types";
 
+// ============================================================
+// Draw 页面状态机
+//
+// 状态说明：
+//   Init        - 初始化状态：页面刚加载，PixiJS 画布尚未就绪
+//   Active      - 激活状态：画布就绪，可接收截图事件（keep-alive 下的待机状态）
+//   WaitRelease - 等待释放：用户完成截图操作后，等待 3s 延迟释放 GPU 资源
+//   Release     - 释放状态：窗口被隐藏后等待重新激活
+//
+// 状态流转：
+//   Init → Active (onInitCanvasReady) → WaitRelease (finishCapture)
+//   → Active (releasePage: keep-alive 复用)
+//
+// keep-alive 策略：
+//   截图完成后不销毁 draw 窗口，而是保持在 Active 状态等待下次截图。
+//   3s 后释放 PixiJS GPU 资源（WebGL 纹理），但保留 V8 JS 代码缓存，
+//   下次截图重新初始化 PixiJS 仅需 ~50-100ms。
+// ============================================================
 enum DrawPageState {
-	/** 初始化状态 */
+	/** 初始化状态：页面刚加载，PixiJS 画布尚未就绪 */
 	Init = "init",
-	/** 激活状态 */
+	/** 激活状态：画布就绪，可接收截图事件 */
 	Active = "active",
-	/** 等待释放状态 */
+	/** 等待释放状态：截图完成，等待延迟释放 GPU 资源 */
 	WaitRelease = "wait-release",
-	/** 释放状态 */
+	/** 释放状态：窗口隐藏，等待重新激活 */
 	Release = "release",
 }
 
@@ -211,9 +229,13 @@ const DrawPageCore: React.FC<{
 	);
 	const ocrBlocksActionRef = useRef<OcrBlocksActionType | undefined>(undefined);
 
-	// 状态
+	// ============================================================
+	// 状态引用（useRef 确保状态在闭包中始终是最新值，避免闭包陷阱）
+	// ============================================================
+
+	// 页面状态机当前状态
 	const drawPageStateRef = useRef<DrawPageState>(DrawPageState.Init);
-	// Init 态暂存的截图事件，等 Active 后自动执行
+	// Init 态暂存的截图事件：当画布未就绪时收到截图请求，暂存后等 onInitCanvasReady 自动执行
 	const pendingScreenshotRef = useRef<{
 		type: ScreenshotType;
 		payload: { windowLabel?: string; captureHistoryId?: string };
@@ -278,6 +300,9 @@ const DrawPageCore: React.FC<{
 		[getScreenshotType, setCaptureEvent],
 	);
 	const capturingRef = useRef(false);
+	// 标记当前窗口是否已进入 fixedContent 模式（已固定到屏幕）
+	// 使用 ref 避免闭包陈旧值问题，确保事件监听器中能读到最新状态
+	const isFixedRef = useRef(false);
 	const circleCursorRef = useRef<HTMLDivElement>(null);
 
 	const { history } = useContext(HistoryContext);
@@ -400,6 +425,8 @@ const DrawPageCore: React.FC<{
 		async ({ min_x, min_y, max_x, max_y }: ElementRect) => {
 			const appWindow = appWindowRef.current;
 
+			// 恢复 setAlwaysOnTop(true)：确保截图覆盖层在所有置顶窗口（如置顶记事本、视频播放器等）之上
+			// 最终状态会设为 false，但显示窗口时必须先置顶，否则截图覆盖层可能被其他置顶窗口遮挡
 			await Promise.all([
 				setWindowRect(appWindow, { min_x, min_y, max_x, max_y }),
 				appWindow.setAlwaysOnTop(true),
@@ -413,14 +440,10 @@ const DrawPageCore: React.FC<{
 				layerContainerRef.current.style.height = `${documentHeight}px`;
 			}
 
+			// showCurrentWindow 内部已调用 setFocus()，无需再额外调用
 			await showCurrentWindow();
-			if (
-				process.env.NODE_ENV === "development" &&
-				getScreenshotType()?.type !== ScreenshotType.TopWindow
-			) {
-				await appWindow.setAlwaysOnTop(false);
-			}
 
+			// 最终状态：取消置顶（开发模式下额外处理已移除，直接统一设置 false）
 			setCurrentWindowAlwaysOnTop(false);
 
 			// 监听键盘
@@ -428,9 +451,10 @@ const DrawPageCore: React.FC<{
 				appError("[DrawPageCore] listenKeyStart error", error);
 			});
 
-			appWindow.setFocus();
+			// 性能优化：移除冗余的 appWindow.setFocus() 调用，
+			// showCurrentWindow() 内部已调用 setFocus()，无需重复
 		},
-		[getScreenshotType],
+		[],
 	);
 
 	const hideWindow = useCallback(async () => {
@@ -441,6 +465,15 @@ const DrawPageCore: React.FC<{
 		// ]);
 	}, []);
 
+	// ============================================================
+	// keep-alive 释放页面：截图完成后不关闭窗口，延迟 3s 释放 GPU 资源后回到待机状态
+	//
+	// 策略：
+	//   1. 保持 draw 窗口存活（不销毁 WebView2），下次截图从 Active 状态直接复用
+	//   2. 释放 PixiJS GPU 资源（WebGL 上下文、纹理），减少内存占用
+	//   3. 调用 trimProcessWorkingSet 回收物理内存（Windows 下通知 OS 裁剪工作集）
+	//   4. 下次截图时 PixiJS 重新初始化仅需 ~50-100ms
+	// ============================================================
 	const releasePage = useMemo(() => {
 		return debounce(async () => {
 			if (drawPageStateRef.current !== DrawPageState.WaitRelease) {
@@ -551,12 +584,16 @@ const DrawPageCore: React.FC<{
 	);
 
 	const initCaptureBoundingBoxInfoAndShowWindow = useCallback(async () => {
+		// 如果窗口已进入 fixedContent 模式，阻止后续截图流程重新显示此窗口
+		if (isFixedRef.current) return;
+
 		// 恢复窗口
 		appWindowRef.current.setIgnoreCursorEvents(false);
 		if (layerContainerRef.current) {
 			layerContainerRef.current.style.opacity = "1";
 		}
 
+		// 获取显示器边界框和鼠标位置（并行 IPC 调用）
 		const [captureBoundingBox, mousePosition] = await Promise.all([
 			getMonitorsBoundingBox(
 				undefined,
@@ -570,6 +607,15 @@ const DrawPageCore: React.FC<{
 			}),
 		]);
 
+		// 性能优化：IPC 返回 rect 后立即启动 showWindow（fire-and-forget），
+		// 让窗口显示与下方 R-tree 构建、CaptureBoundingBoxInfo 创建并行执行，
+		// 避免 showWindow 被同步计算阻塞，加快截图窗口可见显示速度
+		const showWindowPromise =
+			getScreenshotType()?.type === ScreenshotType.Delay
+				? Promise.resolve()
+				: showWindow(captureBoundingBox.rect);
+
+		// 构建 R-tree 空间索引（同步计算，会阻塞主线程）
 		const rTree = new Flatbush(captureBoundingBox.monitor_rect_list.length);
 		captureBoundingBox.monitor_rect_list.forEach(({ rect }) => {
 			rTree.add(rect.min_x, rect.min_y, rect.max_x, rect.max_y);
@@ -592,10 +638,10 @@ const DrawPageCore: React.FC<{
 			);
 		}
 
+		// 等待 showWindow 完成（可能已在 R-tree 构建期间完成），
+		// 然后并行执行 selectLayer 和 imageLayer 的回调
 		await Promise.all([
-			getScreenshotType()?.type === ScreenshotType.Delay
-				? Promise.resolve()
-				: showWindow(captureBoundingBoxInfoRef.current.rect),
+			showWindowPromise,
 			captureBoundingBoxInfoRef.current
 				? selectLayerActionRef.current?.onCaptureBoundingBoxInfoReady(
 						captureBoundingBoxInfoRef.current,
@@ -662,6 +708,16 @@ const DrawPageCore: React.FC<{
 		[getAppSettings, showWindow],
 	);
 
+	// ============================================================
+	// 执行截图核心流程
+	//
+	// 流程步骤：
+	// 1. 设置截图状态（capturing = true）并禁用工具栏
+	// 2. 并行执行：截图捕获 + 边界框计算 + 层级准备
+	// 3. 等待截图结果和边界框就绪
+	// 4. 将截图数据渲染到各层级（ImageLayer、SelectLayer、DrawLayer）
+	// 5. 性能打点记录各阶段耗时
+	// ============================================================
 	/** 执行截图 */
 	const excuteScreenshot = useCallback(
 		async (
@@ -677,6 +733,7 @@ const DrawPageCore: React.FC<{
 			setCaptureStateAction(true);
 			drawToolbarActionRef.current?.setEnable(false);
 
+			// 并行启动截图捕获和边界框计算
 			const captureAllMonitorsPromise =
 				captureAllMonitorsAction(excuteScreenshotType);
 			const initCaptureBoundingBoxInfoPromise =
@@ -712,8 +769,7 @@ const DrawPageCore: React.FC<{
 				`[screenshot-perf] initBoundingBox done: ${(t_bbox - t_capture).toFixed(1)}ms`,
 			);
 
-			// 如果截图失败了，等窗口显示后，结束截图
-			// 切换截图历史时，不进行截图，只进行显示
+			// 如果截图失败且不是切换截图历史，提示错误并结束
 			if (
 				!imageBuffer &&
 				excuteScreenshotType !== ScreenshotType.SwitchCaptureHistory
@@ -726,13 +782,13 @@ const DrawPageCore: React.FC<{
 
 			imageBufferRef.current = imageBuffer;
 
-			// 防止用户提前退出报错
+			// 防止用户在截图过程中提前退出
 			if (getCaptureEvent()?.event !== CaptureEvent.onExecuteScreenshot) {
 				return;
 			}
 
 			try {
-				// 因为窗口是空的，所以窗口显示和图片显示先后顺序倒无所谓
+				// 将截图数据渲染到各层级（imageLayer、selectLayer、drawLayer）
 				await Promise.all([
 					captureBoundingBoxInfoRef.current
 						? readyCapture(
@@ -1042,6 +1098,8 @@ const DrawPageCore: React.FC<{
 			// 停止监听键盘
 			listenKeyStop();
 
+			// 标记当前窗口已进入 fixedContent 模式，防止后续截图事件被旧窗口错误响应
+			isFixedRef.current = true;
 			saveCaptureHistory(undefined, CaptureHistorySource.ScrollScreenshotFixed);
 
 			createFixedContentWindow(true);
@@ -1051,6 +1109,8 @@ const DrawPageCore: React.FC<{
 		// 停止监听键盘
 		listenKeyStop();
 
+		// 标记当前窗口已进入 fixedContent 模式，防止后续截图事件被旧窗口错误响应
+		isFixedRef.current = true;
 		capturingRef.current = false;
 		setCaptureStateAction(false);
 
@@ -1335,8 +1395,23 @@ const DrawPageCore: React.FC<{
 	>(undefined);
 
 	useEffect(() => {
-		// 监听截图命令
+		// ============================================================
+		// 监听截图命令事件 "execute-screenshot"
+		//
+		// 此事件由两处发射：
+		//   - 主链路：前端 executeScreenshot() → emit("execute-screenshot")
+		//   - 兜底链路：Rust trigger_screenshot_core() → emit_to(draw, "execute-screenshot")
+		//
+		// 状态机处理逻辑：
+		//   Init        → 暂存事件到 pendingScreenshotRef，等 onInitCanvasReady 消费
+		//   Release     → 暂存事件，等 release-draw-page 后自动重新触发
+		//   WaitRelease → 直接重置为 Active，立即执行截图
+		//   Active      → 直接执行 excuteScreenshot()
+		// ============================================================
 		const listenerId = addListener("execute-screenshot", (args) => {
+			// 如果窗口已进入 fixedContent 模式，忽略截图事件，防止旧窗口错误响应
+			if (isFixedRef.current) return;
+
 			const t0 = performance.now();
 			const payload = (
 				args as {
@@ -1352,23 +1427,25 @@ const DrawPageCore: React.FC<{
 				`[screenshot-perf] draw received execute-screenshot event, type=${payload.type}`,
 			);
 
-			// 防止循环调用
+			// 防止循环调用：忽略自身窗口发出的事件
 			if (payload.windowLabel === appWindowRef.current?.label) {
 				return;
 			}
 
+			// 正在截图中，跳过重复请求
 			if (capturingRef.current) {
 				appDebug("[screenshot-perf] draw skipped: already capturing");
 				return;
 			}
 
+			// 特殊类型：全屏截图直接保存，不走 draw 编辑器
 			if (payload.type === ScreenshotType.CaptureFullScreen) {
 				captureHistoryActionRef.current?.captureFullScreen();
 				return;
 			}
 
 			if (drawPageStateRef.current === DrawPageState.Init) {
-				// Init 态暂存事件，等 onInitCanvasReady 后自动执行
+				// Init 态：画布尚未就绪，暂存事件等待 onInitCanvasReady 回调执行
 				appDebug(`[screenshot-perf] draw state=Init, queuing screenshot`);
 				pendingScreenshotRef.current = {
 					type: payload.type,
@@ -1376,8 +1453,7 @@ const DrawPageCore: React.FC<{
 				};
 				return;
 			} else if (drawPageStateRef.current === DrawPageState.Release) {
-				// 这时候可能窗口还在加载中，每隔一段时间触发下截图
-				// Release 阶段只记录一次待执行截图，避免循环重发。
+				// Release 态：窗口正在加载/隐藏中，暂存一次待执行截图
 				appDebug(`[screenshot-perf] draw state=Release, queuing screenshot`);
 				releaseExecuteScreenshotTimerRef.current = {
 					timer: undefined,
@@ -1386,7 +1462,7 @@ const DrawPageCore: React.FC<{
 
 				return;
 			} else if (drawPageStateRef.current === DrawPageState.WaitRelease) {
-				// 重置为激活状态
+				// WaitRelease → Active：用户快速连续截图，取消等待释放直接复用
 				drawPageStateRef.current = DrawPageState.Active;
 			}
 

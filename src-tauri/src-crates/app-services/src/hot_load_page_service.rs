@@ -82,7 +82,19 @@ impl HotLoadPageService {
         .focused(false)
         .build()
         {
-            Ok(window) => window,
+            Ok(window) => {
+                // 在 Win32 层面隐藏窗口，防止 Windows 将极端负坐标 clamp 到可见区域导致闪烁。
+                // 保持 visible(true) 让 WebView2 认为窗口可见，避免后台冻结。
+                #[cfg(target_os = "windows")]
+                {
+                    use windows::Win32::UI::WindowsAndMessaging::{SetWindowPos, SWP_HIDEWINDOW, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER};
+                    let hwnd = window.hwnd().unwrap();
+                    let _ = unsafe {
+                        SetWindowPos(hwnd, None, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_HIDEWINDOW | SWP_NOACTIVATE)
+                    };
+                }
+                window
+            }
             Err(e) => {
                 return Err(format!(
                     "[HotLoadPageService:create_idle_window_core] Create idle window error: {:?}",
@@ -205,6 +217,16 @@ impl HotLoadPageService {
                 None => return None,
             }
         };
+
+        // 弹出窗口前，恢复 Win32 层面的可见性（与 create_idle_window_core 中 SWP_HIDEWINDOW 对应）
+        #[cfg(target_os = "windows")]
+        {
+            use windows::Win32::UI::WindowsAndMessaging::{SetWindowPos, SWP_NOACTIVATE, SWP_SHOWWINDOW, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER};
+            let hwnd = page.window.hwnd().unwrap();
+            let _ = unsafe {
+                SetWindowPos(hwnd, None, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_SHOWWINDOW | SWP_NOACTIVATE)
+            };
+        }
 
         Some(page.window)
     }

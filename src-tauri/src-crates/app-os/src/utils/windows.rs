@@ -23,16 +23,18 @@ use windows::Win32::UI::WindowsAndMessaging::{
 use windows::core::Interface;
 use windows::core::PCWSTR;
 
+/// 切换指定窗口的置顶状态
+/// 通过 GetWindowLongPtrW 获取当前样式，使用 SetWindowPos 切换 TOPMOST/NOTOPMOST
 pub fn switch_always_on_top(hwnd: *mut c_void) -> bool {
     let hwnd = HWND(hwnd);
 
     // 获取窗口的扩展样式
     let ex_style = unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) };
 
-    // 检查窗口是否已经置顶
+    // 检查窗口是否已经置顶（WS_EX_TOPMOST 位是否被设置）
     let is_topmost = (ex_style & WS_EX_TOPMOST.0 as isize) != 0;
 
-    // 根据当前状态切换置顶
+    // 根据当前状态切换置顶：置顶 → 取消置顶，非置顶 → 置顶
     let result = unsafe {
         SetWindowPos(
             hwnd,
@@ -45,31 +47,34 @@ pub fn switch_always_on_top(hwnd: *mut c_void) -> bool {
             0,
             0,
             0,
-            SWP_NOMOVE | SWP_NOSIZE,
+            SWP_NOMOVE | SWP_NOSIZE, // 保持位置和大小不变
         )
     };
 
     result.is_ok()
 }
 
+/// 设置 draw 窗口样式（当前为占位函数，暂不处理）
 pub fn set_draw_window_style(#[allow(unused_variables)] window: tauri::Window) {
     // 暂时不处理，保留下函数占位
-
-    // let window_hwnd = window.hwnd();
-
-    // if let Ok(hwnd) = window_hwnd {
-    //     // 设置窗口样式为0x96000000
-    //     let new_style = -1778384896;
-    //     unsafe { SetWindowLongW(hwnd, GWL_STYLE, new_style) };
-    // }
 }
 
+/// 获取当前前台窗口句柄
 pub fn get_focused_window() -> HWND {
     unsafe { GetForegroundWindow() }
 }
 
+// ============================================================
+// Windows 任务计划程序（Task Scheduler）自启动管理
+//
+// 当应用以管理员权限运行时，普通注册表 Run 键自启动会触发 UAC 弹窗。
+// 解决方案：使用任务计划程序创建登录触发任务，以最高权限静默启动。
+// ============================================================
+
+/// 任务计划程序中创建的任务名称
 const TASK_NAME: &str = "SnowShot Admin Auto Start";
 
+/// COM 守卫：离开作用域时自动调用 CoUninitialize 清理 COM 资源
 struct ComGuard;
 impl Drop for ComGuard {
     fn drop(&mut self) {
@@ -79,10 +84,13 @@ impl Drop for ComGuard {
     }
 }
 
-/**
- * 在 Windows 下创建使用管理员权限自动启动任务
- *
- */
+/// 在 Windows 任务计划程序中创建管理员权限的登录自启动任务
+///
+/// 任务属性：
+/// - 触发器：用户登录时触发（TASK_TRIGGER_LOGON）
+/// - 运行级别：最高权限（TASK_RUNLEVEL_HIGHEST）
+/// - 登录类型：组登录（TASK_LOGON_GROUP，S-1-5-32-544 管理员组 SID）
+/// - 执行参数：--auto_start（通知应用这是自启动，触发延迟逻辑）
 pub fn create_admin_auto_start_task() -> Result<(), String> {
     // 获取当前可执行文件的路径
     let current_exe = match env::current_exe() {
@@ -98,7 +106,7 @@ pub fn create_admin_auto_start_task() -> Result<(), String> {
 
     let _com_guard = ComGuard {};
 
-    // 初始化 COM
+    // 初始化 COM（多线程模式）
     unsafe {
         let hr = CoInitializeEx(None, COINIT_MULTITHREADED);
         if hr.is_err() {
@@ -109,7 +117,7 @@ pub fn create_admin_auto_start_task() -> Result<(), String> {
         }
     }
 
-    // 创建 Task Service 实例
+    // 创建 Task Scheduler 服务实例
     let p_service: ITaskService = match unsafe {
         CoCreateInstance(&TaskScheduler::TaskScheduler, None, CLSCTX_INPROC_SERVER)
     } {
@@ -122,7 +130,7 @@ pub fn create_admin_auto_start_task() -> Result<(), String> {
         }
     };
 
-    // 连接到 Task Service
+    // 连接到本地 Task Scheduler 服务
     unsafe {
         let hr = p_service.Connect(
             &VARIANT::default(),
@@ -135,7 +143,7 @@ pub fn create_admin_auto_start_task() -> Result<(), String> {
         }
     }
 
-    // 获取根任务文件夹
+    // 获取根任务文件夹（\）
     let p_root_folder: ITaskFolder =
         match unsafe { p_service.GetFolder(&windows::core::BSTR::from("\\")) } {
             Ok(p_root_folder) => p_root_folder,
@@ -147,10 +155,10 @@ pub fn create_admin_auto_start_task() -> Result<(), String> {
             }
         };
 
-    // 删除已存在的同名任务
+    // 先删除已存在的同名任务（如果存在）
     let _ = unsafe { p_root_folder.DeleteTask(&windows::core::BSTR::from(TASK_NAME), 0) };
 
-    // 创建任务定义
+    // 创建新的任务定义
     let p_task: ITaskDefinition = match unsafe { p_service.NewTask(0) } {
         Ok(p_task) => p_task,
         Err(e) => {
@@ -161,6 +169,7 @@ pub fn create_admin_auto_start_task() -> Result<(), String> {
         }
     };
 
+    // 设置任务主体信息
     let p_principal: IPrincipal = match unsafe { p_task.Principal() } {
         Ok(p_principal) => p_principal,
         Err(e) => {
@@ -171,7 +180,7 @@ pub fn create_admin_auto_start_task() -> Result<(), String> {
         }
     };
 
-    // 使用最高权限运行
+    // 使用最高权限运行（TASK_RUNLEVEL_HIGHEST）
     unsafe {
         let hr = p_principal.SetRunLevel(TaskScheduler::TASK_RUNLEVEL_HIGHEST);
         if hr.is_err() {
@@ -179,7 +188,7 @@ pub fn create_admin_auto_start_task() -> Result<(), String> {
         }
     }
 
-    // 设置任务注册信息
+    // 设置任务注册信息（作者、描述）
     let p_reg_info: IRegistrationInfo = match unsafe { p_task.RegistrationInfo() } {
         Ok(p_reg_info) => p_reg_info,
         Err(e) => {
@@ -209,7 +218,7 @@ pub fn create_admin_auto_start_task() -> Result<(), String> {
         }
     }
 
-    // 设置任务设置
+    // 设置任务配置：系统可用时立即启动
     let p_settings: ITaskSettings = match unsafe { p_task.Settings() } {
         Ok(p_settings) => p_settings,
         Err(e) => {
@@ -226,10 +235,7 @@ pub fn create_admin_auto_start_task() -> Result<(), String> {
         }
     }
 
-    // 设置任务可以在用户未登录时运行（支持管理员权限）
-    // 注意：某些 Windows 版本可能不支持此设置，管理员权限主要通过 SID 指定
-
-    // 获取触发器集合并创建登录触发器
+    // 获取触发器集合并创建登录触发器（用户登录时触发）
     let p_trigger_collection: ITriggerCollection = match unsafe { p_task.Triggers() } {
         Ok(p_trigger_collection) => p_trigger_collection,
         Err(e) => {
@@ -249,7 +255,7 @@ pub fn create_admin_auto_start_task() -> Result<(), String> {
         }
     };
 
-    // 将 ITrigger 转换为 ILogonTrigger
+    // 将 ITrigger 转换为 ILogonTrigger 接口
     let p_logon_trigger: ILogonTrigger = match p_trigger.cast() {
         Ok(p_logon_trigger) => p_logon_trigger,
         Err(e) => {
@@ -269,7 +275,7 @@ pub fn create_admin_auto_start_task() -> Result<(), String> {
         }
     }
 
-    // 获取动作集合并创建执行动作
+    // 获取动作集合并创建执行动作（运行当前 exe）
     let p_action_collection: IActionCollection = match unsafe { p_task.Actions() } {
         Ok(p_action_collection) => p_action_collection,
         Err(e) => {
@@ -289,7 +295,7 @@ pub fn create_admin_auto_start_task() -> Result<(), String> {
         }
     };
 
-    // 将 IAction 转换为 IExecAction
+    // 将 IAction 转换为 IExecAction 接口
     let p_exec_action: IExecAction = match p_action.cast() {
         Ok(p_exec_action) => p_exec_action,
         Err(e) => {
@@ -299,6 +305,7 @@ pub fn create_admin_auto_start_task() -> Result<(), String> {
             ));
         }
     };
+    // 设置要执行的程序路径
     unsafe {
         let hr = p_exec_action.SetPath(&windows::core::BSTR::from(&*exe_path));
         if hr.is_err() {
@@ -309,7 +316,7 @@ pub fn create_admin_auto_start_task() -> Result<(), String> {
         }
     }
 
-    // 设置参数
+    // 设置执行参数：--auto_start（通知应用延迟启动）
     unsafe {
         let hr = p_exec_action.SetArguments(&windows::core::BSTR::from("--auto_start"));
         if hr.is_err() {
@@ -320,19 +327,18 @@ pub fn create_admin_auto_start_task() -> Result<(), String> {
         }
     }
 
-    // 设置任务为以管理员权限运行
-    // S-1-5-32-544 是管理员组的 SID
+    // S-1-5-32-544 是管理员组的 SID（Security Identifier）
     let admin_sid = windows::core::BSTR::from("S-1-5-32-544");
 
-    // 注册任务
+    // 注册任务到根文件夹，使用管理员组 SID 确保以管理员权限运行
     let _p_registered_task: IRegisteredTask = match unsafe {
         p_root_folder.RegisterTaskDefinition(
             &windows::core::BSTR::from(TASK_NAME),
             &p_task,
             TaskScheduler::TASK_CREATE_OR_UPDATE.0,
-            &VARIANT::from(admin_sid), // 使用管理员组 SID
+            &VARIANT::from(admin_sid), // 使用管理员组 SID 指定运行身份
             &VARIANT::default(),
-            TASK_LOGON_GROUP,
+            TASK_LOGON_GROUP, // 组登录类型
             &VARIANT::from(""),
         )
     } {
@@ -348,6 +354,7 @@ pub fn create_admin_auto_start_task() -> Result<(), String> {
     Ok(())
 }
 
+/// 删除任务计划程序中的管理员自启动任务
 pub fn delete_admin_auto_start_task() -> Result<(), String> {
     let _com_guard = ComGuard {};
 
@@ -362,7 +369,7 @@ pub fn delete_admin_auto_start_task() -> Result<(), String> {
         }
     }
 
-    // 创建 Task Service 实例
+    // 创建 Task Scheduler 服务实例
     let p_service: ITaskService = match unsafe {
         CoCreateInstance(&TaskScheduler::TaskScheduler, None, CLSCTX_INPROC_SERVER)
     } {
@@ -375,7 +382,7 @@ pub fn delete_admin_auto_start_task() -> Result<(), String> {
         }
     };
 
-    // 连接到 Task Service
+    // 连接到本地 Task Scheduler 服务
     unsafe {
         let hr = p_service.Connect(
             &VARIANT::default(),
@@ -400,12 +407,13 @@ pub fn delete_admin_auto_start_task() -> Result<(), String> {
             }
         };
 
-    // 删除已存在的同名任务
+    // 删除同名任务
     let _ = unsafe { p_root_folder.DeleteTask(&windows::core::BSTR::from(TASK_NAME), 0) };
 
     Ok(())
 }
 
+/// 检查管理员自启动任务是否已启用
 pub fn is_admin_auto_start_task_enabled() -> Result<bool, String> {
     let _com_guard = ComGuard {};
 
@@ -420,7 +428,7 @@ pub fn is_admin_auto_start_task_enabled() -> Result<bool, String> {
         }
     }
 
-    // 创建 Task Service 实例
+    // 创建 Task Scheduler 服务实例
     let p_service: ITaskService = match unsafe {
         CoCreateInstance(&TaskScheduler::TaskScheduler, None, CLSCTX_INPROC_SERVER)
     } {
@@ -433,7 +441,7 @@ pub fn is_admin_auto_start_task_enabled() -> Result<bool, String> {
         }
     };
 
-    // 连接到 Task Service
+    // 连接到本地 Task Scheduler 服务
     unsafe {
         let hr = p_service.Connect(
             &VARIANT::default(),
@@ -458,7 +466,7 @@ pub fn is_admin_auto_start_task_enabled() -> Result<bool, String> {
             }
         };
 
-    // 删除已存在的同名任务
+    // 获取任务对象
     let task = match unsafe { p_root_folder.GetTask(&windows::core::BSTR::from(TASK_NAME)) } {
         Ok(task) => task,
         Err(e) => {
@@ -469,6 +477,7 @@ pub fn is_admin_auto_start_task_enabled() -> Result<bool, String> {
         }
     };
 
+    // 查询任务启用状态
     let enabled = match unsafe { task.Enabled() } {
         Ok(enabled) => enabled,
         Err(e) => {
@@ -483,17 +492,19 @@ pub fn is_admin_auto_start_task_enabled() -> Result<bool, String> {
 }
 
 /// 检查当前进程是否具有管理员权限
+///
+/// 通过 OpenProcessToken + GetTokenInformation 查询 TOKEN_ELEVATION 标志
 pub fn is_admin() -> bool {
     unsafe {
         let mut token: HANDLE = HANDLE::default();
         let process = GetCurrentProcess();
 
-        // 获取进程令牌
+        // 获取当前进程的访问令牌
         if OpenProcessToken(process, TOKEN_QUERY, &mut token).is_err() {
             return false;
         }
 
-        // 检查令牌权限
+        // 查询令牌提升信息（TokenElevation）
         let mut elevation: TOKEN_ELEVATION = std::mem::zeroed();
         let mut return_length = 0u32;
 
@@ -509,7 +520,12 @@ pub fn is_admin() -> bool {
     }
 }
 
-/// 使用ShellExecuteEx请求UAC提权启动当前进程的新实例
+/// 使用 ShellExecuteExW 请求 UAC 提权，以管理员权限启动当前进程的新实例
+///
+/// 流程：
+/// 1. 检查是否已具有管理员权限（已管理员则直接返回）
+/// 2. 通过 ShellExecuteExW + "runas" verb 触发 UAC 弹窗
+/// 3. 新进程启动后，当前进程退出（std::process::exit(0)）
 pub fn restart_with_admin() -> Result<(), String> {
     // 先检查是否已经具有管理员权限
     if is_admin() {
@@ -531,7 +547,9 @@ pub fn restart_with_admin() -> Result<(), String> {
     unsafe {
         let mut sei: SHELLEXECUTEINFOW = std::mem::zeroed();
         sei.cbSize = std::mem::size_of::<SHELLEXECUTEINFOW>() as u32;
-        sei.fMask = SEE_MASK_NOCLOSEPROCESS;
+        sei.fMask = SEE_MASK_NOCLOSEPROCESS; // 等待新进程句柄
+
+        // "runas" verb 会触发 UAC 提权弹窗
         let verb = "runas\0".encode_utf16().collect::<Vec<u16>>();
         let file = exe_path.encode_utf16().chain(Some(0)).collect::<Vec<u16>>();
         sei.lpVerb = PCWSTR::from_raw(verb.as_ptr());
@@ -543,12 +561,12 @@ pub fn restart_with_admin() -> Result<(), String> {
             return Err("[restart_with_admin] ShellExecuteExW failed".into());
         }
 
-        // 检查是否成功提权
+        // 检查是否成功创建进程
         if sei.hProcess.is_invalid() {
             return Err("[restart_with_admin] ShellExecuteExW failed".into());
         }
 
-        // 如果提权成功，新进程启动后，当前进程可以退出
+        // 提权成功，新进程已启动，当前进程退出
         std::process::exit(0);
     }
 }

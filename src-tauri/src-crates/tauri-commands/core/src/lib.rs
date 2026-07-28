@@ -190,6 +190,8 @@ pub async fn create_fixed_content_window(
         window
             .set_size(tauri::PhysicalSize::new(500.0, 500.0))
             .unwrap();
+        // 将窗口从离屏待机位置 (-32000, -32000) 移到屏幕中心
+        let _ = window.center();
 
         match window.emit(
             "hot-load-page-route-push",
@@ -241,12 +243,13 @@ pub async fn create_fixed_content_window(
     .skip_taskbar(true)
     .resizable(false)
     .inner_size(500.0, 500.0)
-    .position(0.0, 0.0)
+    .visible(true)
     .build()
     .unwrap();
 
-    window.hide().unwrap();
-    window.center().unwrap();
+    // 固定内容窗口需要立即可见，直接 show + focus
+    window.show().unwrap();
+    window.set_focus().unwrap();
 
     Ok(())
 }

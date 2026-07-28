@@ -8,6 +8,7 @@ use tauri::{Manager, PhysicalPosition, PhysicalSize, command, ipc::Response};
 use tauri_plugin_autostart::ManagerExt;
 use tokio::sync::Mutex;
 
+/// 退出应用（处理 dhat 性能分析资源释放后再退出）
 #[command]
 pub async fn exit_app(handle: tauri::AppHandle) {
     #[cfg(feature = "dhat-heap")]
@@ -16,6 +17,8 @@ pub async fn exit_app(handle: tauri::AppHandle) {
     snow_shot_tauri_commands_core::exit_app(handle).await;
 }
 
+/// 获取当前选中的文本（通过 UI Automation）
+/// 首次获取失败时等待 83ms 后重试一次
 #[command]
 pub async fn get_selected_text() -> String {
     let mut text = snow_shot_tauri_commands_core::get_selected_text().await;
@@ -27,12 +30,13 @@ pub async fn get_selected_text() -> String {
     text
 }
 
+/// 启用/禁用 HTTP 代理
 #[command]
 pub async fn set_enable_proxy(enable: bool, host: String) -> Result<(), ()> {
     snow_shot_tauri_commands_core::set_enable_proxy(enable, host).await
 }
 
-/// 鼠标滚轮穿透
+/// 鼠标滚轮穿透：将滚轮事件转发给窗口下方的应用
 #[command]
 pub async fn scroll_through(
     window: tauri::Window,
@@ -42,7 +46,7 @@ pub async fn scroll_through(
     snow_shot_tauri_commands_core::scroll_through(window, enigo_manager, length).await
 }
 
-/// 鼠标滚轮穿透
+/// 自动滚动穿透（用于滚动截图场景的自动滚轮模拟）
 #[command]
 pub async fn auto_scroll_through(
     enigo_manager: tauri::State<'_, Mutex<EnigoManager>>,
@@ -52,7 +56,7 @@ pub async fn auto_scroll_through(
     snow_shot_tauri_commands_core::auto_scroll_through(enigo_manager, direction, length).await
 }
 
-/// 鼠标滚轮穿透
+/// 鼠标点击穿透
 #[command]
 pub async fn click_through(window: tauri::Window) -> Result<(), ()> {
     snow_shot_tauri_commands_core::click_through(window).await
@@ -278,6 +282,19 @@ pub async fn close_window_after_delay(window: tauri::Window, delay: u64) {
     snow_shot_tauri_commands_core::close_window_after_delay(window, delay).await
 }
 
+// ============================================================
+// 自启动管理
+//
+// 普通权限：使用 Tauri autostart 插件写入注册表 Run 键
+// 管理员权限：使用 Windows 任务计划程序（Task Scheduler）创建登录触发器，
+//            以最高权限运行，绕过 UAC 弹窗
+// ============================================================
+
+/// 启用自启动
+///
+/// Windows 下双路径策略：
+/// - 非管理员：使用 tauri-plugin-autostart（注册表 HKCU\Run）
+/// - 管理员：使用 Windows 任务计划程序，以 TASK_RUNLEVEL_HIGHEST 权限创建登录触发任务
 #[command]
 pub async fn auto_start_enable(app: tauri::AppHandle) -> Result<(), String> {
     let autostart_manager = app.autolaunch();
@@ -301,7 +318,7 @@ pub async fn auto_start_enable(app: tauri::AppHandle) -> Result<(), String> {
             Err(_) => return Err(String::from("[auto_start_enable] Failed to check if admin")),
         };
 
-        // 如果是管理员模式，则禁用普通的自启动方式，使用 Windows 的任务计划程序实现自启动
+        // 非管理员：使用普通注册表自启动方式
         if !is_admin {
             match autostart_manager.enable() {
                 Ok(_) => (),
@@ -316,17 +333,16 @@ pub async fn auto_start_enable(app: tauri::AppHandle) -> Result<(), String> {
             return Ok(());
         }
 
-        // 禁用普通自启动方式
+        // 管理员模式：先禁用普通注册表自启动（避免双启动）
         match autostart_manager.disable() {
             Ok(_) => (),
             Err(e) => {
-                // 如果 autostart_manager 不是设置了的状态，则可能报错
-                // 所以不提前退出
+                // 如果 autostart_manager 不是设置了的状态，则可能报错，不提前退出
                 log::warn!("[auto_start_enable] Failed to disable autostart: {}", e);
             }
         }
 
-        // 创建管理员自启动任务
+        // 创建管理员自启动任务（Windows 任务计划程序）
         match snow_shot_tauri_commands_core::create_admin_auto_start_task().await {
             Ok(_) => (),
             Err(e) => {
@@ -341,11 +357,14 @@ pub async fn auto_start_enable(app: tauri::AppHandle) -> Result<(), String> {
     }
 }
 
+/// 禁用自启动
+///
+/// 同时清理注册表自启动 + 任务计划程序自启动任务
 #[command]
 pub async fn auto_start_disable(app: tauri::AppHandle) -> Result<(), String> {
     let autostart_manager = app.autolaunch();
 
-    // 先禁用普通自启动方式
+    // 先禁用普通注册表自启动方式
     match autostart_manager.disable() {
         Ok(_) => (),
         Err(e) => {
@@ -389,6 +408,10 @@ pub async fn auto_start_disable(app: tauri::AppHandle) -> Result<(), String> {
     }
 }
 
+/// 以管理员权限重启应用
+///
+/// 通过 ShellExecuteExW + "runas" verb 触发 UAC 提权弹窗，
+/// 新进程以管理员权限启动后，当前进程退出
 #[command]
 pub async fn restart_with_admin() -> Result<(), String> {
     snow_shot_tauri_commands_core::restart_with_admin().await

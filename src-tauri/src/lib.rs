@@ -1,15 +1,18 @@
-﻿pub mod core;
-pub mod file;
-pub mod global_state;
-pub mod hot_load_page;
-pub mod http_services;
-pub mod listen_key;
-pub mod ocr;
-pub mod plugin;
-pub mod screenshot;
-pub mod scroll_screenshot;
-pub mod video_record;
-pub mod webview;
+﻿// ============================================================
+// 模块声明 - Tauri 后端各功能模块的路由入口
+// ============================================================
+pub mod core;            // 核心功能：自启动、窗口管理、提权重启等
+pub mod file;            // 文件操作：读写、复制、删除、路径管理
+pub mod global_state;    // 全局状态管理：截图状态同步、快捷键映射
+pub mod hot_load_page;   // 热加载页面管理（动态注册新的 Tauri 窗口路由）
+pub mod http_services;   // HTTP 服务：云端上传（S3）
+pub mod listen_key;      // 键盘/鼠标监听服务
+pub mod ocr;             // OCR 文字识别
+pub mod plugin;          // 插件系统
+pub mod screenshot;      // 截图功能核心：触发截图、draw 窗口管理
+pub mod scroll_screenshot; // 滚动截图
+pub mod video_record;    // 录屏功能
+pub mod webview;         // WebView 共享缓冲区（GPU 零拷贝传输）
 
 use snow_shot_app_services::listen_mouse_service;
 use snow_shot_tauri_commands_core::{FullScreenDrawWindowLabels, VideoRecordWindowLabels};
@@ -38,22 +41,33 @@ use snow_shot_plugin_service::plugin_service;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+// ============================================================
+// --open-draw 触发防抖机制
+// 防止短时间内重复触发截图（如快捷键连按、多实例同时启动等场景）
+// ============================================================
+
 #[cfg(feature = "dhat-heap")]
 pub static PROFILER: std::sync::LazyLock<Mutex<Option<dhat::Profiler>>> =
     std::sync::LazyLock::new(|| Mutex::new(None));
 
+/// 是否正在触发 --open-draw 流程中（原子标志，防止并发重复触发）
 static OPEN_DRAW_TRIGGERING: AtomicBool = AtomicBool::new(false);
+/// 上一次触发 --open-draw 的时间戳（毫秒），用于防抖判断
 static LAST_OPEN_DRAW_TRIGGER_AT_MS: AtomicU64 = AtomicU64::new(0);
-// Debounce window for --open-draw re-triggers.
+/// --open-draw 重复触发的防抖窗口期（毫秒）
 const OPEN_DRAW_TRIGGER_DEBOUNCE_MS: u64 = 1200;
 
+/// 检查当前是否可以触发 open-draw 截图
+/// 使用 CAS（Compare-And-Swap）无锁算法实现线程安全的防抖检查
 fn can_trigger_open_draw_now(now_ms: u64) -> bool {
     loop {
         let last_ms = LAST_OPEN_DRAW_TRIGGER_AT_MS.load(Ordering::SeqCst);
+        // 距上次触发不足防抖窗口期，拒绝本次触发
         if now_ms.saturating_sub(last_ms) < OPEN_DRAW_TRIGGER_DEBOUNCE_MS {
             return false;
         }
 
+        // CAS 原子更新最后触发时间，成功则允许触发
         if LAST_OPEN_DRAW_TRIGGER_AT_MS
             .compare_exchange(last_ms, now_ms, Ordering::SeqCst, Ordering::SeqCst)
             .is_ok()
@@ -63,25 +77,122 @@ fn can_trigger_open_draw_now(now_ms: u64) -> bool {
     }
 }
 
-/// Check whether command line contains `--open-draw`.
+/// 检测命令行参数中是否包含 `--open-draw`
+/// 该参数由 C# 托盘服务或外部调用传入，用于触发一次截图
 fn has_open_draw_arg(args: &[String]) -> bool {
     args.iter().any(|arg| arg == "--open-draw")
 }
 
-/// Open draw page and execute screenshot once.
+/// 【Windows 专属】在 --open-draw 模式下，预检查并等待崩溃进程残留的单实例互斥锁释放
+///
+/// 背景：当 C# 托盘服务在旧进程崩溃后立即重启新进程时，Windows 内核对象可能尚未完全释放。
+///       崩溃进程持有的 single-instance Mutex 可能仍处于 signaled/abandoned 状态，
+///       导致新进程无法正确获取互斥锁，进而无法判断自己是主实例还是次要实例。
+///
+/// 策略：只检测和等待（不获取所有权），等待 OS 清理完崩溃进程的内核对象后退出，
+///       让 tauri-plugin-single-instance 插件正常进行主/次实例判断。
+///
+/// 重要：此处不获取互斥锁所有权，仅等待其释放后让插件自行处理。
+#[cfg(target_os = "windows")]
+fn pre_acquire_single_instance_mutex_if_open_draw() {
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows_sys::Win32::System::Threading::{OpenMutexW, ReleaseMutex, WaitForSingleObject, MUTEX_ALL_ACCESS};
+
+    // WAIT_OBJECT_0 = 0, WAIT_ABANDONED = 0x80（Win32 API 常量，windows-sys 未导出）
+    const WAIT_OBJECT_0: u32 = 0x00000000;
+    const WAIT_ABANDONED: u32 = 0x00000080;
+
+    let args: Vec<String> = std::env::args().collect();
+    // 非 open-draw 模式下不需要预检查
+    if !has_open_draw_arg(&args) {
+        return;
+    }
+
+    // 互斥锁名称格式与 tauri_plugin_single_instance 保持一致：{identifier}-sim
+    // identifier 即为 tauri.conf.json 中的 "XiaoDaShuai"
+    let mutex_name = "XiaoDaShuai-sim";
+    let wide_name: Vec<u16> = OsStr::new(mutex_name)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+
+    const MAX_RETRIES: u32 = 3;
+    const RETRY_DELAY_MS: u64 = 500;
+    // 每次等待 200ms，如果活跃进程持有锁则会超时
+    const WAIT_TIMEOUT_MS: u32 = 200;
+
+    for attempt in 0..=MAX_RETRIES {
+        // 只打开已有的互斥锁，不创建（不获取所有权）
+        let hmutex: HANDLE =
+            unsafe { OpenMutexW(MUTEX_ALL_ACCESS, false.into(), wide_name.as_ptr()) };
+
+        if hmutex.is_null() {
+            // 互斥锁不存在 —— 无残留锁，正常继续
+            if attempt == 0 {
+                log::debug!("[single-instance-pre-check] No existing mutex found, proceeding normally");
+            }
+            return;
+        }
+
+        // 互斥锁存在，短暂等待看是否被释放（崩溃进程清理后的 signaled 状态）
+        let wait_result = unsafe { WaitForSingleObject(hmutex, WAIT_TIMEOUT_MS) };
+
+        match wait_result {
+            WAIT_OBJECT_0 | WAIT_ABANDONED => {
+                // WaitForSingleObject 返回 WAIT_OBJECT_0/WAIT_ABANDONED 时，调用线程已获取 mutex 所有权
+                // 必须先 ReleaseMutex 归还所有权，再 CloseHandle 释放句柄，否则 mutex 泄露
+                unsafe { ReleaseMutex(hmutex) };
+                unsafe { CloseHandle(hmutex) };
+                log::debug!(
+                    "[single-instance-pre-check] Mutex released at attempt {} (result={}), retrying...",
+                    attempt,
+                    wait_result
+                );
+                if attempt < MAX_RETRIES {
+                    std::thread::sleep(std::time::Duration::from_millis(RETRY_DELAY_MS));
+                    continue;
+                }
+                return;
+            }
+            _ => {
+                // WAIT_TIMEOUT：活跃进程持有互斥锁，未获取所有权，仅关闭句柄后退出
+                unsafe { CloseHandle(hmutex) };
+                log::debug!(
+                    "[single-instance-pre-check] Live process owns mutex at attempt {}, bailing out",
+                    attempt
+                );
+                return;
+            }
+        }
+    }
+}
+
+/// 打开 draw 页面并执行一次截图（--open-draw 触发的主流程）
+///
+/// 流程：
+/// 1. 防抖检查：拒绝 1200ms 内的重复触发
+/// 2. 原子标志检查：防止并发重复执行
+/// 3. 异步调用 trigger_screenshot_core 执行实际截图
 fn schedule_open_draw(app: tauri::AppHandle) {
     let now_ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0);
+    // 防抖：距上次触发不足 1200ms 则跳过
     if !can_trigger_open_draw_now(now_ms) {
+        log::info!("[schedule_open_draw] skipped: within debounce window ({}ms)", OPEN_DRAW_TRIGGER_DEBOUNCE_MS);
         return;
     }
 
+    // 原子标志：如果已有执行中的 open-draw 流程，则跳过
     if OPEN_DRAW_TRIGGERING.swap(true, Ordering::SeqCst) {
+        log::info!("[schedule_open_draw] skipped: already triggering in progress");
         return;
     }
 
+    log::info!("[schedule_open_draw] triggered, spawning trigger_screenshot_core...");
     tauri::async_runtime::spawn(async move {
         screenshot::trigger_screenshot_core(&app, "default".to_string(), None, None).await;
 
@@ -91,12 +202,25 @@ fn schedule_open_draw(app: tauri::AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // ============================================================
     // Layer 2: 必须在任何 WebView2 实例创建前设置环境变量
+    // 禁用 Chromium 的后台节流、GPU 超时等节能策略，确保截图窗口响应速度
+    // ============================================================
     #[cfg(target_os = "windows")]
     {
         snow_shot_app_os::efficiency_mode::set_webview2_chromium_args();
     }
 
+    // ============================================================
+    // Windows 崩溃重启场景：预清理残留的单实例互斥锁
+    // 当 C# 托盘服务在旧进程崩溃后重启新进程时，OS 可能尚未释放崩溃进程的内核对象
+    // ============================================================
+    #[cfg(target_os = "windows")]
+    pre_acquire_single_instance_mutex_if_open_draw();
+
+    // ============================================================
+    // 初始化所有后端服务实例（均通过 Tauri 状态管理注入）
+    // ============================================================
     let ocr_instance = Mutex::new(OcrService::new());
     let video_record_service = Mutex::new(video_record_service::VideoRecordService::new());
     let hot_load_page_service = Arc::new(hot_load_page_service::HotLoadPageService::new());
@@ -127,6 +251,7 @@ pub fn run() {
 
     let plugin_service = Arc::new(plugin_service::PluginService::new());
 
+    // 截图全局状态：是否正在截图中（互斥锁保护）
     let capture_state = Mutex::new(CaptureState { capturing: false });
 
     let full_screen_draw_window_labels = Mutex::new(Option::<FullScreenDrawWindowLabels>::None);
@@ -136,15 +261,15 @@ pub fn run() {
 
     let read_clipboard_state = Mutex::new(ReadClipboardState { reading: false });
 
+    // 截图快捷键 -> 截图类型映射表（由前端同步）
     let screenshot_shortcut_map: Mutex<ScreenshotShortcutMap> = Mutex::new(std::collections::HashMap::new());
 
     use tauri_plugin_log::{Target, TargetKind};
 
-    // let current_date = chrono::Local::now().format("%Y-%m-%d").to_string();
-
-    // log 文件可能因为某些异常情况不断输出，造成日志文件过大
-    // 先在 release 下屏蔽日志输出
-    // 注意不要移除 log 插件的初始化,避免前端调用 log 时保存再次报错,持续循环报错
+    // ============================================================
+    // 日志配置：debug 模式下输出到 stdout + 文件 + WebView；release 模式仅文件
+    // 注意：release 下不移除 log 插件初始化，避免前端调用 log 时反复报错
+    // ============================================================
     let log_targets: Vec<Target> = if cfg!(debug_assertions) {
         vec![
             Target::new(TargetKind::Stdout),
@@ -162,6 +287,7 @@ pub fn run() {
 
     #[allow(unused_mut)]
     let mut app_builder = tauri::Builder::default()
+        // ---- Tauri 插件链 ----
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
             tauri_plugin_window_state::Builder::new()
@@ -173,11 +299,14 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_os::init())
+        // -- single-instance: 单实例插件，处理多开请求 --
+        // 当检测到已有实例运行时，通过回调将 --open-draw 参数转发给主实例
         .plugin(tauri_plugin_single_instance::init(|app, argv, _| {
             if has_open_draw_arg(&argv) {
-                // Secondary instance with --open-draw asks primary instance to capture once.
+                // 次要实例携带 --open-draw 参数：通知主实例执行截图
                 schedule_open_draw(app.clone());
             } else {
+                // 普通的多开请求：激活并显示主窗口
                 let app_window = app.get_webview_window("main").expect("no main window");
                 app_window.show().unwrap();
                 app_window.unminimize().unwrap();
@@ -190,23 +319,27 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_http::init())
+        // -- autostart: 自启动插件，通过 --auto_start 参数启动 --
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec!["--auto_start"]),
         ))
         .plugin(tauri_plugin_clipboard::init())
         .plugin(tauri_plugin_dialog::init())
+        // -- global-shortcut: 全局快捷键插件 --
+        // Rust 侧直接处理快捷键事件，绕过前端 IPC，作为 JS 侧 WebView 冻结时的兜底通道
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(move |app, shortcut, event| {
                     use tauri_plugin_global_shortcut::ShortcutState;
+                    // 只响应按键按下事件
                     if event.state != ShortcutState::Pressed {
                         return;
                     }
 
                     let shortcut_str = shortcut.to_string();
 
-                    // 从 Rust 状态中查询该快捷键对应的截图类型
+                    // 从 Rust 状态中查询该快捷键对应的截图类型（由前端通过 sync_screenshot_shortcuts 同步）
                     let app_clone = app.clone();
                     let shortcut_str_clone = shortcut_str.clone();
                     tauri::async_runtime::spawn(async move {
@@ -221,6 +354,7 @@ pub fn run() {
                                 screenshot_type,
                                 t_shortcut.elapsed().as_millis()
                             );
+                            // 直接调用 Rust 侧 trigger_screenshot_core，跳过前端 IPC 链路
                             crate::screenshot::trigger_screenshot_core(
                                 &app_clone,
                                 screenshot_type,
@@ -240,6 +374,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_process::init())
+        // -- log 插件：支持运行时过滤，release 模式默认关闭日志 --
         .plugin(
             tauri_plugin_log::Builder::default()
                 .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
@@ -254,27 +389,38 @@ pub fn run() {
 
                     #[cfg(not(debug_assertions))]
                     {
+                        // release 模式下由前端通过 set_run_log 控制是否输出日志
                         return enable_run_log.load(std::sync::atomic::Ordering::Relaxed);
                     }
                 })
                 .build(),
         )
+        // ============================================================
+        // setup: 应用初始化完成后的配置
+        // ============================================================
         .setup(|app| {
-            let main_window = app
-                .get_webview_window("main")
-                .expect("[lib::setup] no main window");
+            // 安全获取主窗口：如果不存在则记录错误并提前返回，避免 panic 导致进程终止
+            let main_window = match app.get_webview_window("main") {
+                Some(w) => w,
+                None => {
+                    log::error!("[lib::setup] no main window found, skipping setup");
+                    return Ok(());
+                }
+            };
 
             let args: Vec<String> = std::env::args().collect();
             if has_open_draw_arg(&args) {
-                // Primary instance startup also supports --open-draw.
+                // 主实例启动时也支持 --open-draw：直接触发截图
                 schedule_open_draw(app.handle().clone());
             }
 
             #[cfg(target_os = "windows")]
             {
-                // Layer 1: 禁用主进程效能模式
+                // Layer 1: 禁用主进程的 Windows 效能模式（Efficiency Mode）
+                // 防止系统将截图进程降频导致截图响应变慢
                 snow_shot_app_os::efficiency_mode::disable_main_process_efficiency_mode();
 
+                // 移除窗口装饰（标题栏），实现无边框截图窗口
                 match main_window.set_decorations(false) {
                     Ok(_) => (),
                     Err(_) => {
@@ -282,21 +428,23 @@ pub fn run() {
                     }
                 }
 
-                // Layer 3: 启动后台进程树扫描守护线程
+                // Layer 3: 启动后台守护线程，周期性扫描进程树并禁用 WebView2 子进程的效能模式
                 snow_shot_app_os::efficiency_mode::spawn_efficiency_mode_guard();
             }
 
             #[cfg(target_os = "macos")]
             {
-                // macOS 下不在 dock 显示
+                // macOS 下不在 dock 显示图标
                 app.set_activation_policy(tauri::ActivationPolicy::Prohibited);
             }
 
-            // 监听窗口关闭事件，拦截关闭按钮
+            // ============================================================
+            // 拦截主窗口关闭事件：隐藏而非销毁，实现"最小化到托盘"效果
+            // ============================================================
             let window_clone = main_window.clone();
             main_window.on_window_event(move |event| {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                    api.prevent_close();
+                    api.prevent_close(); // 阻止真正关闭窗口
 
                     #[cfg(target_os = "windows")]
                     {
@@ -312,18 +460,28 @@ pub fn run() {
                         }
                     }
 
-                    window_clone.emit("on-hide-main-window", ()).unwrap();
+                    // 通知前端窗口已隐藏，用于菜单/托盘状态同步
+                    // 安全处理：emit 失败时记录日志而非 panic
+                    if let Err(e) = window_clone.emit("on-hide-main-window", ()) {
+                        log::error!("[setup] emit on-hide-main-window error: {:?}", e);
+                    }
                 }
             });
 
-            // 如果是调试模式，则显示窗口
+            // debug 模式下默认显示窗口方便调试
             #[cfg(debug_assertions)]
             {
-                main_window.show().unwrap();
+                // 安全处理：show 失败时记录日志而非 panic
+                if let Err(e) = main_window.show() {
+                    log::error!("[setup] show main window error: {:?}", e);
+                }
             }
 
             Ok(())
         })
+        // ============================================================
+        // 将所有服务注册到 Tauri 全局状态，供各模块通过 State<T> 访问
+        // ============================================================
         .manage(ui_elements)
         .manage(ocr_instance)
         .manage(enigo_instance)
@@ -345,6 +503,9 @@ pub fn run() {
         .manage(capture_state)
         .manage(read_clipboard_state)
         .manage(screenshot_shortcut_map)
+        // ============================================================
+        // 注册所有 IPC 命令处理器（前端 invoke 的入口）
+        // ============================================================
         .invoke_handler(tauri::generate_handler![
             screenshot::capture_current_monitor,
             screenshot::capture_all_monitors,
@@ -452,11 +613,14 @@ pub fn run() {
             global_state::set_read_clipboard_state,
             global_state::get_read_clipboard_state,
         ])
+        // ============================================================
+        // 全局窗口关闭事件处理：通知前端停止监听服务
+        // ============================================================
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {
                 let window_label = window.label().to_owned();
 
-                // 用 tokio 异步进程实现清除有异步所有权问题，通知前端清理，简单处理
+                // 用事件通知前端清理键盘/鼠标监听（异步清理存在所有权问题）
                 match window
                     .app_handle()
                     .emit("listen-key-service:stop", window_label.clone())
@@ -483,6 +647,7 @@ pub fn run() {
         app_builder = app_builder.manage(shared_buffer_service);
     }
 
+    // 启动 Tauri 应用事件循环
     app_builder
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

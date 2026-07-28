@@ -606,7 +606,11 @@ pub async fn get_mouse_position(app: tauri::AppHandle) -> Result<(i32, i32), Str
     snow_shot_app_utils::get_mouse_position(&app)
 }
 
-pub async fn create_draw_window(app: tauri::AppHandle) {
+/// 创建 draw 截图编辑窗口。
+/// 返回 `Ok(true)` 表示成功创建了新窗口，`Ok(false)` 表示已有 standby 窗口无需创建，
+/// `Err(_)` 表示窗口创建失败（如 WebView2 初始化失败）。
+pub async fn create_draw_window(app: tauri::AppHandle) -> Result<bool, String> {
+    log::info!("[create_draw_window] triggered, checking existing standby windows...");
     let mut draw_windows = app
         .webview_windows()
         .iter()
@@ -619,10 +623,12 @@ pub async fn create_draw_window(app: tauri::AppHandle) {
         .iter()
         .filter_map(|(label, window)| {
             let is_hidden = matches!(window.is_visible(), Ok(false));
+            // 仅依赖坐标+非聚焦判断 standby 状态，移除尺寸限制
+            // 某些 Windows 配置（GPU 驱动、DPI 缩放）可能将 0×0 窗口 clamp 到更大最小尺寸
             let is_offscreen_standby = matches!(
-                (window.outer_position(), window.inner_size(), window.is_focused()),
-                (Ok(position), Ok(size), Ok(false))
-                    if position.x <= -30000 && position.y <= -30000 && size.width <= 1 && size.height <= 1
+                (window.outer_position(), window.is_focused()),
+                (Ok(position), Ok(false))
+                    if position.x <= -30000 && position.y <= -30000
             );
 
             if is_hidden || is_offscreen_standby {
@@ -642,7 +648,8 @@ pub async fn create_draw_window(app: tauri::AppHandle) {
                 let _ = window.close();
             }
         }
-        return;
+        log::info!("[create_draw_window] standby window already exists, skipped creation");
+        return Ok(false);
     }
 
     let draw_url = if cfg!(debug_assertions) {
@@ -651,15 +658,24 @@ pub async fn create_draw_window(app: tauri::AppHandle) {
         "/draw".to_string()
     };
 
-    let window = tauri::WebviewWindowBuilder::new(
+    // 安全处理 SystemTime::now()，避免 unwrap() panic；失败时回退到 0 作为时间戳
+    let timestamp_secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or_else(|e| {
+            log::error!(
+                "[create_draw_window] SystemTime::now() failed: {}, falling back to timestamp 0",
+                e
+            );
+            0
+        });
+
+    let window_label = format!("draw-{}", timestamp_secs);
+
+    // 安全处理 build() 结果：WebView2 初始化失败时记录错误并返回，避免 panic=abort 导致进程终止
+    let window = match tauri::WebviewWindowBuilder::new(
         &app,
-        format!(
-            "draw-{}",
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs()
-        ),
+        window_label.clone(),
         tauri::WebviewUrl::App(draw_url.into()),
     )
     .resizable(false)
@@ -671,13 +687,31 @@ pub async fn create_draw_window(app: tauri::AppHandle) {
     .shadow(false)
     .transparent(true)
     .skip_taskbar(true)
-    .inner_size(1.0, 1.0)
+    // 初始尺寸设为 0×0，避免 Windows clamp 极端坐标后 1×1 像素闪烁
+    // WebView2 仍会因 visible(true) + WS_VISIBLE 保持活跃，不会触发后台冻结
+    .inner_size(0.0, 0.0)
     // Keep the standby page technically visible so WebView2 does not background-freeze it.
     .position(-32000.0, -32000.0)
     .visible(true)
     .focused(false)
+    // 禁用后台节流，防止 draw 窗口在后台时被 Chromium 冻结（冷启动场景关键）
+    .background_throttling(tauri::utils::config::BackgroundThrottlingPolicy::Disabled)
     .build()
-    .unwrap();
+    {
+        Ok(w) => w,
+        Err(e) => {
+            log::error!(
+                "[create_draw_window] WebView2 build() failed for label '{}': {}. \
+                 可能原因：WebView2 Runtime 未安装或初始化超时（低配机器常见）",
+                window_label,
+                e
+            );
+            return Err(format!(
+                "create_draw_window build() failed: {}",
+                e
+            ));
+        }
+    };
 
     #[cfg(target_os = "windows")]
     {
@@ -685,8 +719,29 @@ pub async fn create_draw_window(app: tauri::AppHandle) {
         use windows::Win32::Graphics::Dwm::{
             DWMWA_TRANSITIONS_FORCEDISABLED, DwmSetWindowAttribute,
         };
+        use windows::Win32::UI::WindowsAndMessaging::{
+            SetWindowPos, SWP_HIDEWINDOW, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
+        };
 
-        let window_hwnd = window.hwnd().unwrap();
+        // 安全处理 hwnd() 获取，避免 unwrap() panic
+        let window_hwnd = match window.hwnd() {
+            Ok(h) => h,
+            Err(e) => {
+                log::error!(
+                    "[create_draw_window] Failed to get HWND for window '{}': {}. \
+                     跳过 DWM 属性设置与 Win32 隐藏",
+                    window_label,
+                    e
+                );
+                // 即使无法获取 HWND，窗口本身已创建成功，仍返回 Ok(true)
+                let _ = window.set_ignore_cursor_events(true);
+                log::info!(
+                    "[create_draw_window] draw window created (without Win32 tweaks), label={}",
+                    window.label()
+                );
+                return Ok(true);
+            }
+        };
 
         // 禁用窗口动画
         unsafe {
@@ -702,10 +757,24 @@ pub async fn create_draw_window(app: tauri::AppHandle) {
                     log::error!("[create_draw_window] Failed to disable window transitions");
                 }
             }
+
+            // 在 Win32 层面隐藏窗口，防止 Windows 将极端负坐标 clamp 到可见区域导致闪烁。
+            // 使用 SWP_HIDEWINDOW 而非 visible(false)，保留 WS_VISIBLE 让 WebView2 不冻结。
+            let _ = SetWindowPos(
+                HWND(window_hwnd.0),
+                None,
+                0, 0, 0, 0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_HIDEWINDOW | SWP_NOACTIVATE,
+            );
         }
     }
 
     let _ = window.set_ignore_cursor_events(true);
+    log::info!(
+        "[create_draw_window] draw window created successfully, label={}",
+        window.label()
+    );
+    Ok(true)
 }
 
 pub async fn set_draw_window_style(window: tauri::Window) {

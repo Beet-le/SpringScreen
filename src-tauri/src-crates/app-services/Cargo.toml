@@ -20,6 +20,12 @@ num_cpus = "1.17.0"
 ffmpeg-sidecar = "2.2.0"
 ort = { version = "2.0.0-rc.10", default-features = false }
 
+[target.'cfg(any(target_os = "windows"))'.dependencies]
+windows = { workspace = true, features = [
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_Foundation",
+] }
+
 [target.'cfg(any(target_os = "macos"))'.dependencies]
 xcap = { workspace = true }
 macos-accessibility-client = { workspace = true }

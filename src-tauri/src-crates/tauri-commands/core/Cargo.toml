@@ -28,6 +28,8 @@ objc2-foundation = { workspace = true }
 [target.'cfg(any(target_os = "windows"))'.dependencies]
 windows = { workspace = true, features = [
     "Win32_UI",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_Foundation",
 ] }
 snow-shot-webview = { workspace = true }
 tauri-plugin-clipboard-manager = { workspace = true }
