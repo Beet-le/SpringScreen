@@ -1,7 +1,7 @@
-# SpringScreen 轻量化截图工具
+
 <div align="center">
 <a name="readme-top"></a>
-<h1>Screenshot！一款轻量好用的Windows截图工具，低配电脑友好</h1>
+<h1>SpringScreen！一款轻量好用的Windows截图工具，低配电脑友好</h1>
 </div>
 
 ## 软件介绍
