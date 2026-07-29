@@ -7,7 +7,7 @@
 ## 软件介绍
 本项目基于开源项目 [mg-chao/snow-shot](https://github.com/mg-chao/snow-shot) 二次定制开发，针对低配置 Windows 设备深度优化，核心改进如下：
 1. 重构长截图渲染逻辑，提升滚动截取、长图拼接流畅度
-2. 新增命令行启动能力，CMD 执行以下指令可直接唤起绘图截图面板
+2. 新增命令行启动能力，运行目录CMD 执行以下指令可直接唤起绘图截图面板
     ```bash
     SpringScreen.exe --open-draw
     ```
