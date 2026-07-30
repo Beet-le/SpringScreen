@@ -12,16 +12,20 @@ pub mod plugin;          // 插件系统
 pub mod screenshot;      // 截图功能核心：触发截图、draw 窗口管理
 pub mod scroll_screenshot; // 滚动截图
 pub mod video_record;    // 录屏功能
+pub mod config;          // 应用配置持久化（图片查看器窗口状态等）
+pub mod image_viewer;  // 图片查看器窗口管理
 pub mod webview;         // WebView 共享缓冲区（GPU 零拷贝传输）
 
 use snow_shot_app_services::listen_mouse_service;
 use snow_shot_tauri_commands_core::{FullScreenDrawWindowLabels, VideoRecordWindowLabels};
 use std::sync::Arc;
+use std::sync::Mutex as StdMutex;
 use tauri::Emitter;
 use tokio::sync::Mutex;
 
 use tauri::Manager;
 
+use snow_shot_app_shared::AppConfig;
 use snow_shot_app_os::ui_automation::UIElements;
 use snow_shot_app_scroll_screenshot_service::scroll_screenshot_capture_service;
 use snow_shot_app_scroll_screenshot_service::scroll_screenshot_image_service;
@@ -81,6 +85,27 @@ fn can_trigger_open_draw_now(now_ms: u64) -> bool {
 /// 该参数由 C# 托盘服务或外部调用传入，用于触发一次截图
 fn has_open_draw_arg(args: &[String]) -> bool {
     args.iter().any(|arg| arg == "--open-draw")
+}
+
+/// 检查命令行参数中是否包含图片文件路径
+/// 当用户通过"右键 → 打开方式"或"拖拽文件到 exe"启动时，Windows 会将文件路径作为参数传入
+fn extract_image_path_from_args(args: &[String]) -> Option<String> {
+    for arg in args {
+        // 跳过以 -- 开头的参数（如 --open-draw, --auto_start）
+        if arg.starts_with("--") {
+            continue;
+        }
+        // 检查是否是图片文件扩展名
+        let lower = arg.to_lowercase();
+        if lower.ends_with(".png") || lower.ends_with(".jpg")
+            || lower.ends_with(".jpeg") || lower.ends_with(".webp")
+            || lower.ends_with(".bmp") || lower.ends_with(".gif")
+            || lower.ends_with(".tiff") || lower.ends_with(".tif")
+        {
+            return Some(arg.clone());
+        }
+    }
+    None
 }
 
 /// 【Windows 专属】在 --open-draw 模式下，预检查并等待崩溃进程残留的单实例互斥锁释放
@@ -261,6 +286,11 @@ pub fn run() {
 
     let read_clipboard_state = Mutex::new(ReadClipboardState { reading: false });
 
+    // 应用配置（图片查看器窗口状态等，持久化到 config.json）
+    // 延迟到 setup 中从文件加载，此处先创建默认值
+    let app_config = Arc::new(StdMutex::new(AppConfig::default()));
+    let app_config_for_setup = app_config.clone();
+
     // 截图快捷键 -> 截图类型映射表（由前端同步）
     let screenshot_shortcut_map: Mutex<ScreenshotShortcutMap> = Mutex::new(std::collections::HashMap::new());
 
@@ -285,8 +315,38 @@ pub fn run() {
         log::LevelFilter::Info
     };
 
+    // 延迟创建图片查看器：存储待处理的图片路径，等主窗口 page-load 后再创建
+    // 原因：setup 回调执行时 HTTP server 可能尚未就绪，过早创建窗口会导致 ERR_CONNECTION_REFUSED
+    let pending_image_path: Arc<StdMutex<Option<String>>> = Arc::new(StdMutex::new(None));
+
+    // on_page_load 回调：主窗口页面加载完成后，检查是否有待创建的图片查看器
+    let pending_image_path_for_load = pending_image_path.clone();
+    let on_page_load_handler = move |webview: &tauri::Webview, payload: &tauri::webview::PageLoadPayload| {
+        if let tauri::webview::PageLoadEvent::Finished = payload.event() {
+            // 仅处理主窗口的 page-load 事件
+            if webview.window().label() != "main" {
+                return;
+            }
+            let path_clone = pending_image_path_for_load.lock().unwrap().take();
+            if let Some(image_path) = path_clone {
+                let app_handle = webview.app_handle().clone();
+                let image_path_log = image_path.clone();
+                log::info!("[on_page_load] creating image viewer for path '{}'", image_path_log);
+                tauri::async_runtime::spawn(async move {
+                    if let Err(e) = snow_shot_tauri_commands_core::create_image_viewer_window(
+                        app_handle,
+                        image_path,
+                    ).await {
+                        log::error!("[on_page_load] create_image_viewer_window failed for path '{}': {}", image_path_log, e);
+                    }
+                });
+            }
+        }
+    };
+
     #[allow(unused_mut)]
     let mut app_builder = tauri::Builder::default()
+        .on_page_load(on_page_load_handler)
         // ---- Tauri 插件链 ----
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
@@ -302,11 +362,27 @@ pub fn run() {
         // -- single-instance: 单实例插件，处理多开请求 --
         // 当检测到已有实例运行时，通过回调将 --open-draw 参数转发给主实例
         .plugin(tauri_plugin_single_instance::init(|app, argv, _| {
+            log::info!("[single_instance] callback triggered, argv={:?}", argv);
             if has_open_draw_arg(&argv) {
                 // 次要实例携带 --open-draw 参数：通知主实例执行截图
+                log::info!("[single_instance] branch: --open-draw, scheduling screenshot");
                 schedule_open_draw(app.clone());
+            } else if let Some(image_path) = extract_image_path_from_args(&argv) {
+                // 次要实例收到图片文件路径，在主实例中打开图片查看器
+                log::info!("[single_instance] branch: image path '{}', creating image viewer", image_path);
+                let app_clone = app.clone();
+                let image_path_log = image_path.clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Err(e) = snow_shot_tauri_commands_core::create_image_viewer_window(
+                        app_clone,
+                        image_path,
+                    ).await {
+                        log::error!("[single_instance] create_image_viewer_window failed for path '{}': {}", image_path_log, e);
+                    }
+                });
             } else {
                 // 普通的多开请求：激活并显示主窗口
+                log::info!("[single_instance] branch: activate main window");
                 let app_window = app.get_webview_window("main").expect("no main window");
                 app_window.show().unwrap();
                 app_window.unminimize().unwrap();
@@ -398,7 +474,7 @@ pub fn run() {
         // ============================================================
         // setup: 应用初始化完成后的配置
         // ============================================================
-        .setup(|app| {
+        .setup(move |app| {
             // 安全获取主窗口：如果不存在则记录错误并提前返回，避免 panic 导致进程终止
             let main_window = match app.get_webview_window("main") {
                 Some(w) => w,
@@ -412,6 +488,11 @@ pub fn run() {
             if has_open_draw_arg(&args) {
                 // 主实例启动时也支持 --open-draw：直接触发截图
                 schedule_open_draw(app.handle().clone());
+            } else if let Some(image_path) = extract_image_path_from_args(&args) {
+                // 检查是否通过"打开方式"或拖拽传递了图片文件
+                // 注意：不在此处创建窗口，HTTP server 可能尚未就绪
+                // 延迟到主窗口 page-load 事件触发后再创建
+                *pending_image_path.lock().unwrap() = Some(image_path);
             }
 
             #[cfg(target_os = "windows")]
@@ -468,6 +549,16 @@ pub fn run() {
                 }
             });
 
+            // 加载持久化的应用配置（图片查看器窗口状态等）
+            if let Ok(config_dir) = app.path().app_config_dir() {
+                let config_path = config_dir.join("config.json");
+                let loaded_config = AppConfig::load(&config_path);
+                if let Ok(mut cfg) = app_config_for_setup.lock() {
+                    *cfg = loaded_config;
+                }
+                log::info!("[setup] 已加载应用配置: {:?}", config_path);
+            }
+
             // debug 模式下默认显示窗口方便调试
             #[cfg(debug_assertions)]
             {
@@ -475,6 +566,24 @@ pub fn run() {
                 if let Err(e) = main_window.show() {
                     log::error!("[setup] show main window error: {:?}", e);
                 }
+            }
+
+            // 兜底：如果 page-load 事件在 setup 之前已触发（极端时序），
+            // 此时 HTTP server 必然已就绪，直接创建图片查看器
+            let fallback_path = pending_image_path.lock().unwrap().take();
+            if let Some(image_path) = fallback_path {
+                log::info!("[setup] page-load may have fired before setup, creating image viewer as fallback");
+                let app_handle = app.handle().clone();
+                let image_path_log = image_path.clone();
+                log::info!("[setup_fallback] creating image viewer for path '{}'", image_path_log);
+                tauri::async_runtime::spawn(async move {
+                    if let Err(e) = snow_shot_tauri_commands_core::create_image_viewer_window(
+                        app_handle,
+                        image_path,
+                    ).await {
+                        log::error!("[setup_fallback] create_image_viewer_window failed for path '{}': {}", image_path_log, e);
+                    }
+                });
             }
 
             Ok(())
@@ -503,6 +612,7 @@ pub fn run() {
         .manage(capture_state)
         .manage(read_clipboard_state)
         .manage(screenshot_shortcut_map)
+        .manage(app_config.clone())
         // ============================================================
         // 注册所有 IPC 命令处理器（前端 invoke 的入口）
         // ============================================================
@@ -566,6 +676,9 @@ pub fn run() {
             core::is_admin,
             core::set_run_log,
             core::set_exclude_from_capture,
+            image_viewer::create_image_viewer_window,
+            config::save_image_viewer_window_state,
+            config::load_image_viewer_window_state,
             core::show_main_window,
             core::set_window_rect,
             core::trim_process_working_set,
@@ -638,6 +751,24 @@ pub fn run() {
                     Err(e) => {
                         log::error!("[listen_mouse_service:stop] Failed to emit event: {}", e);
                     }
+                }
+            }
+
+            // image-viewer 窗口销毁后延迟触发工作集裁剪，回收 WebView2 子进程残留内存
+            if let tauri::WindowEvent::Destroyed = event {
+                let label = window.label().to_owned();
+                if label.starts_with("image-viewer-") {
+                    log::info!("[window_event] image-viewer '{}' destroyed, scheduling working set trim", label);
+                    tauri::async_runtime::spawn(async move {
+                        // 延迟 500ms 等待 WebView2 子进程完成销毁
+                        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                        // trim_working_set_for_process_tree 是同步阻塞操作，
+                        // 必须用 spawn_blocking 放到阻塞线程池，避免阻塞 tokio async worker 线程。
+                        // 无需防抖：trim 本身是轻量操作，多个窗口各自触发一次即可，互不干扰。
+                        tauri::async_runtime::spawn_blocking(|| {
+                            snow_shot_app_os::efficiency_mode::trim_working_set_for_process_tree();
+                        });
+                    });
                 }
             }
         });

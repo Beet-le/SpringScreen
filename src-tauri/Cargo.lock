@@ -6627,6 +6627,7 @@ version = "0.1.0"
 dependencies = [
  "enigo 0.6.1",
  "serde",
+ "serde_json",
  "uiautomation",
 ]
 
@@ -6707,6 +6708,7 @@ dependencies = [
  "objc2 0.6.3",
  "objc2-app-kit",
  "objc2-foundation 0.3.2",
+ "percent-encoding",
  "rayon",
  "serde",
  "snow-shot-app-os",

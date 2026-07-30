@@ -2,6 +2,71 @@ use enigo::Enigo;
 use enigo::Settings;
 use serde::Deserialize;
 use serde::Serialize;
+use std::path::Path;
+
+// ============================================================
+// 图片查看器窗口状态持久化
+// ============================================================
+
+/// 图片查看器窗口状态（大小和位置），用于跨会话持久化
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ImageViewerWindowState {
+    pub width: f64,
+    pub height: f64,
+    pub x: f64,
+    pub y: f64,
+}
+
+impl Default for ImageViewerWindowState {
+    fn default() -> Self {
+        Self {
+            width: 800.0,
+            height: 600.0,
+            x: 0.0,
+            y: 0.0,
+        }
+    }
+}
+
+/// 应用配置（持久化到 config.json）
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AppConfig {
+    /// 图片查看器窗口状态
+    #[serde(default)]
+    pub image_viewer_window_state: ImageViewerWindowState,
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            image_viewer_window_state: ImageViewerWindowState::default(),
+        }
+    }
+}
+
+impl AppConfig {
+    /// 从指定路径加载配置，文件不存在或解析失败时返回默认值
+    pub fn load(config_path: &Path) -> Self {
+        match std::fs::read_to_string(config_path) {
+            Ok(content) => serde_json::from_str(&content).unwrap_or_default(),
+            Err(_) => Self::default(),
+        }
+    }
+
+    /// 将配置保存到指定路径
+    pub fn save(&self, config_path: &Path) -> Result<(), String> {
+        let json = serde_json::to_string_pretty(self)
+            .map_err(|e| format!("序列化配置失败: {}", e))?;
+        // 确保父目录存在
+        if let Some(parent) = config_path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("创建配置目录失败: {}", e))?;
+        }
+        std::fs::write(config_path, json)
+            .map_err(|e| format!("写入配置文件失败: {}", e))?;
+        Ok(())
+    }
+}
 
 pub struct EnigoManager {
     pub enigo: Option<Enigo>,

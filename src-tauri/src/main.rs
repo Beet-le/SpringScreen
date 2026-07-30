@@ -38,6 +38,23 @@ const DELAY_SECONDS: u64 = 3;
 
 #[cfg(not(feature = "dhat-heap"))]
 fn main() {
+    // ============================================================
+    // 【Windows 专属】隐藏启动时闪现的控制台窗口
+    // 背景：Windows 通过文件关联（"打开方式"/拖拽到 exe）启动应用时，
+    //       即使设置了 windows_subsystem = "windows"，控制台窗口仍可能短暂闪现。
+    //       在 main() 最开始调用 FreeConsole() 彻底分离控制台，消除闪现。
+    // ============================================================
+    #[cfg(target_os = "windows")]
+    {
+        use windows_sys::Win32::System::Console::{FreeConsole, GetConsoleWindow};
+        use windows_sys::Win32::UI::WindowsAndMessaging::ShowWindow;
+        let hwnd = unsafe { GetConsoleWindow() };
+        if !hwnd.is_null() {
+            unsafe { ShowWindow(hwnd, 0) }; // SW_HIDE = 0
+        }
+        unsafe { FreeConsole() };
+    }
+
     // 设置全局 panic 钩子，捕获崩溃时的调用栈信息并记录到日志
     let default_panic = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {

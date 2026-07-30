@@ -22,6 +22,9 @@ const NoLayoutVideoRecordToolbarLazyRouteImport = createFileRoute(
 const NoLayoutVideoRecordLazyRouteImport = createFileRoute(
   '/_noLayout/videoRecord',
 )()
+const NoLayoutImageViewerLazyRouteImport = createFileRoute(
+  '/_noLayout/imageViewer',
+)()
 const NoLayoutIdleLazyRouteImport = createFileRoute('/_noLayout/idle')()
 const NoLayoutFullScreenDrawSwitchMouseThroughLazyRouteImport = createFileRoute(
   '/_noLayout/fullScreenDrawSwitchMouseThrough',
@@ -84,6 +87,13 @@ const NoLayoutVideoRecordLazyRoute = NoLayoutVideoRecordLazyRouteImport.update({
   getParentRoute: () => NoLayoutRouteRoute,
 } as any).lazy(() =>
   import('./routes/_noLayout/videoRecord.lazy').then((d) => d.Route),
+)
+const NoLayoutImageViewerLazyRoute = NoLayoutImageViewerLazyRouteImport.update({
+  id: '/imageViewer',
+  path: '/imageViewer',
+  getParentRoute: () => NoLayoutRouteRoute,
+} as any).lazy(() =>
+  import('./routes/_noLayout/imageViewer.lazy').then((d) => d.Route),
 )
 const NoLayoutIdleLazyRoute = NoLayoutIdleLazyRouteImport.update({
   id: '/idle',
@@ -217,6 +227,7 @@ export interface FileRoutesByFullPath {
   '/fullScreenDraw': typeof NoLayoutFullScreenDrawLazyRoute
   '/fullScreenDrawSwitchMouseThrough': typeof NoLayoutFullScreenDrawSwitchMouseThroughLazyRoute
   '/idle': typeof NoLayoutIdleLazyRoute
+  '/imageViewer': typeof NoLayoutImageViewerLazyRoute
   '/videoRecord': typeof NoLayoutVideoRecordLazyRoute
   '/videoRecordToolbar': typeof NoLayoutVideoRecordToolbarLazyRoute
   '/': typeof LayoutIndexLazyRoute
@@ -237,6 +248,7 @@ export interface FileRoutesByTo {
   '/fullScreenDraw': typeof NoLayoutFullScreenDrawLazyRoute
   '/fullScreenDrawSwitchMouseThrough': typeof NoLayoutFullScreenDrawSwitchMouseThroughLazyRoute
   '/idle': typeof NoLayoutIdleLazyRoute
+  '/imageViewer': typeof NoLayoutImageViewerLazyRoute
   '/videoRecord': typeof NoLayoutVideoRecordLazyRoute
   '/videoRecordToolbar': typeof NoLayoutVideoRecordToolbarLazyRoute
   '/': typeof LayoutIndexLazyRoute
@@ -260,6 +272,7 @@ export interface FileRoutesById {
   '/_noLayout/fullScreenDraw': typeof NoLayoutFullScreenDrawLazyRoute
   '/_noLayout/fullScreenDrawSwitchMouseThrough': typeof NoLayoutFullScreenDrawSwitchMouseThroughLazyRoute
   '/_noLayout/idle': typeof NoLayoutIdleLazyRoute
+  '/_noLayout/imageViewer': typeof NoLayoutImageViewerLazyRoute
   '/_noLayout/videoRecord': typeof NoLayoutVideoRecordLazyRoute
   '/_noLayout/videoRecordToolbar': typeof NoLayoutVideoRecordToolbarLazyRoute
   '/_layout/': typeof LayoutIndexLazyRoute
@@ -282,6 +295,7 @@ export interface FileRouteTypes {
     | '/fullScreenDraw'
     | '/fullScreenDrawSwitchMouseThrough'
     | '/idle'
+    | '/imageViewer'
     | '/videoRecord'
     | '/videoRecordToolbar'
     | '/'
@@ -302,6 +316,7 @@ export interface FileRouteTypes {
     | '/fullScreenDraw'
     | '/fullScreenDrawSwitchMouseThrough'
     | '/idle'
+    | '/imageViewer'
     | '/videoRecord'
     | '/videoRecordToolbar'
     | '/'
@@ -324,6 +339,7 @@ export interface FileRouteTypes {
     | '/_noLayout/fullScreenDraw'
     | '/_noLayout/fullScreenDrawSwitchMouseThrough'
     | '/_noLayout/idle'
+    | '/_noLayout/imageViewer'
     | '/_noLayout/videoRecord'
     | '/_noLayout/videoRecordToolbar'
     | '/_layout/'
@@ -378,6 +394,13 @@ declare module '@tanstack/react-router' {
       path: '/videoRecord'
       fullPath: '/videoRecord'
       preLoaderRoute: typeof NoLayoutVideoRecordLazyRouteImport
+      parentRoute: typeof NoLayoutRouteRoute
+    }
+    '/_noLayout/imageViewer': {
+      id: '/_noLayout/imageViewer'
+      path: '/imageViewer'
+      fullPath: '/imageViewer'
+      preLoaderRoute: typeof NoLayoutImageViewerLazyRouteImport
       parentRoute: typeof NoLayoutRouteRoute
     }
     '/_noLayout/idle': {
@@ -528,6 +551,7 @@ interface NoLayoutRouteRouteChildren {
   NoLayoutFullScreenDrawLazyRoute: typeof NoLayoutFullScreenDrawLazyRoute
   NoLayoutFullScreenDrawSwitchMouseThroughLazyRoute: typeof NoLayoutFullScreenDrawSwitchMouseThroughLazyRoute
   NoLayoutIdleLazyRoute: typeof NoLayoutIdleLazyRoute
+  NoLayoutImageViewerLazyRoute: typeof NoLayoutImageViewerLazyRoute
   NoLayoutVideoRecordLazyRoute: typeof NoLayoutVideoRecordLazyRoute
   NoLayoutVideoRecordToolbarLazyRoute: typeof NoLayoutVideoRecordToolbarLazyRoute
 }
@@ -539,6 +563,7 @@ const NoLayoutRouteRouteChildren: NoLayoutRouteRouteChildren = {
   NoLayoutFullScreenDrawSwitchMouseThroughLazyRoute:
     NoLayoutFullScreenDrawSwitchMouseThroughLazyRoute,
   NoLayoutIdleLazyRoute: NoLayoutIdleLazyRoute,
+  NoLayoutImageViewerLazyRoute: NoLayoutImageViewerLazyRoute,
   NoLayoutVideoRecordLazyRoute: NoLayoutVideoRecordLazyRoute,
   NoLayoutVideoRecordToolbarLazyRoute: NoLayoutVideoRecordToolbarLazyRoute,
 }

@@ -6,6 +6,7 @@ use std::{
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
+use tauri::webview::PageLoadEvent;
 use tauri::Emitter;
 use tauri::Manager;
 use tokio::{fs, sync::Mutex, time};
@@ -18,7 +19,7 @@ use snow_shot_app_services::{
 use snow_shot_app_services::{
     hot_load_page_service::HotLoadPageService, resize_window_service::ResizeWindowService,
 };
-use snow_shot_app_shared::{ElementRect, EnigoManager};
+use snow_shot_app_shared::{AppConfig, ElementRect, EnigoManager};
 use snow_shot_app_utils::{get_target_monitor, monitor_info::MonitorRect};
 
 pub async fn exit_app(handle: tauri::AppHandle) {
@@ -1207,6 +1208,77 @@ pub async fn has_focused_full_screen_window() -> Result<bool, String> {
             })
         }))
     }
+}
+
+/// 创建图片查看器窗口
+pub async fn create_image_viewer_window(
+    app: tauri::AppHandle,
+    file_path: String,
+) -> Result<(), String> {
+    log::info!("[create_image_viewer_window] creating window for file: {}", file_path);
+    // 窗口标签：image-viewer-{timestamp}
+    let label = format!(
+        "image-viewer-{}",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis()
+    );
+
+    // 对文件路径进行 URL 编码，防止路径中的特殊字符破坏 URL 解析
+    let encoded_path = percent_encoding::utf8_percent_encode(
+        &file_path,
+        percent_encoding::NON_ALPHANUMERIC,
+    )
+    .to_string();
+
+    // URL 格式（参考 create_fixed_content_window 的模式）
+    let url = if cfg!(debug_assertions) {
+        format!("/?route=/imageViewer&path={}", encoded_path)
+    } else {
+        format!("/imageViewer?path={}", encoded_path)
+    };
+
+    // 创建窗口 - 标准窗口（有标题栏、可调整大小）
+    // 注意：初始 visible(false)，等 WebView2 内容加载完成后再显示，
+    // 避免窗口创建后内容渲染前出现黑色窗口闪烁
+    let window = tauri::WebviewWindowBuilder::new(
+        &app,
+        label,
+        tauri::WebviewUrl::App(PathBuf::from(url)),
+    )
+    .title("SpringScreen-图片查看器")
+    .inner_size(800.0, 600.0)
+    .min_inner_size(400.0, 300.0)
+    .resizable(true)
+    .maximizable(true)
+    .minimizable(true)
+    .decorations(true)
+    .center()
+    .visible(false)
+    .on_page_load(|window, payload| {
+        if let PageLoadEvent::Finished = payload.event() {
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+    })
+    .build()
+    .map_err(|e| format!("[create_image_viewer_window] Failed to create window: {}", e))?;
+    log::info!("[create_image_viewer_window] window '{}' created successfully", window.label());
+
+    // 恢复保存的窗口状态（大小和位置）
+    if let Ok(config_state) = app.state::<std::sync::Arc<std::sync::Mutex<AppConfig>>>().lock() {
+        let state = &config_state.image_viewer_window_state;
+        if state.width > 0.0 && state.height > 0.0 {
+            let _ = window.set_size(tauri::LogicalSize::new(state.width, state.height));
+            // 仅当保存了有效位置时才覆盖默认的居中位置
+            if state.x != 0.0 || state.y != 0.0 {
+                let _ = window.set_position(tauri::LogicalPosition::new(state.x, state.y));
+            }
+        }
+    }
+
+    Ok(())
 }
 
 pub async fn show_main_window(app: tauri::AppHandle, auto_hide: bool) -> Result<(), String> {

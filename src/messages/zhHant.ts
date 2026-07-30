@@ -59,6 +59,7 @@ export const zhHant = {
 	"home.shortcut.registered": "註冊成功",
 	"home.shortcut.unregistered": "註冊中斷，可能是快捷鍵被重複設定",
 	"home.shortcut.error": "註冊失敗，快速鍵已被其他應用程式佔用",
+	"home.openImageFile": "打開圖片",
 	"home.exit": "退出",
 	"draw.drag": "拖曳",
 	"draw.red": "紅色",

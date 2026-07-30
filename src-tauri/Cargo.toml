@@ -53,7 +53,7 @@ xcap = { git = "https://github.com/mg-chao/xcap", branch = "custom/master" }
 # device_query: 键盘/鼠标输入监听库
 device_query = { git = "https://github.com/mg-chao/device_query", branch = "custom/master" }
 log = "^0.4"
-image = { version = "^0.25", features = ["png", "webp"] }
+image = { version = "^0.25", features = ["png", "webp", "jpeg", "gif", "tiff", "bmp"] }
 imageproc = "^0.25"
 # enigo: 跨平台键盘鼠标模拟库（用于滚轮穿透等功能）
 enigo = "0.6.1"
@@ -162,6 +162,8 @@ tauri-plugin-window-state = "2"       # 窗口状态持久化（位置、大小�
 windows-sys = { version = "0.60", features = [
     "Win32_System_Threading",   # OpenMutexW, WaitForSingleObject（单实例互斥锁预检查）
     "Win32_Foundation",         # CloseHandle, HANDLE
+    "Win32_System_Console",     # GetConsoleWindow, FreeConsole（隐藏启动时闪现的控制台窗口）
+    "Win32_UI_WindowsAndMessaging", # ShowWindow（隐藏控制台窗口）
 ] }
 
 # dhat = "0.3.3"  # 堆内存分析工具（仅调试用，默认禁用）

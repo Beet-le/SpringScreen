@@ -47,6 +47,13 @@
 		],
 		"resources": {
 			"app-icons/": "app-icons/"
-		}
+		},
+		"fileAssociations": [
+			{
+				"ext": ["png", "jpg", "jpeg", "webp", "bmp", "gif", "tiff", "tif"],
+				"description": "Image file",
+				"role": "Viewer"
+			}
+		]
 	}
 }

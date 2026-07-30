@@ -86,4 +86,8 @@ export const defaultAppFunctionConfigs: Record<AppFunction, AppFunctionConfig> =
 			shortcutKey: "",
 			group: AppFunctionGroup.Other,
 		},
+		[AppFunction.OpenImageFile]: {
+			shortcutKey: "",
+			group: AppFunctionGroup.Other,
+		},
 	};

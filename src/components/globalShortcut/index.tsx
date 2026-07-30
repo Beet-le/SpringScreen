@@ -3,8 +3,10 @@ import {
 	FieldTimeOutlined,
 	FolderOutlined,
 	HistoryOutlined,
+	PictureOutlined,
 } from "@ant-design/icons";
 import { useDeepCompareEffect } from "@ant-design/pro-components";
+import * as dialog from "@tauri-apps/plugin-dialog";
 import {
 	isRegistered,
 	register,
@@ -21,6 +23,7 @@ import React, {
 } from "react";
 import { FormattedMessage } from "react-intl";
 import { syncScreenshotShortcuts } from "@/commands";
+import { createImageViewerWindow } from "@/commands/imageViewer";
 import {
 	createFixedContentWindow,
 	createFullScreenDrawWindow,
@@ -299,6 +302,19 @@ const GlobalShortcutCore = ({ children }: { children: React.ReactNode }) => {
 							buttonTitle = <FormattedMessage id="home.openCaptureHistory" />;
 							buttonIcon = <HistoryOutlined />;
 							buttonOnClick = () => openCaptureHistory();
+							break;
+						case AppFunction.OpenImageFile:
+							buttonTitle = <FormattedMessage id="home.openImageFile" />;
+							buttonIcon = <PictureOutlined />;
+							buttonOnClick = async () => {
+								const filePath = await dialog.open({
+									defaultPath: "C:\\Users\\air14\\Pictures\\SpringScreen",
+									filters: [{ name: "Image", extensions: ["png", "jpg", "jpeg", "webp", "bmp", "gif", "tiff", "tif"] }],
+								});
+								if (filePath && typeof filePath === "string") {
+									await createImageViewerWindow(filePath);
+								}
+							};
 							break;
 						case AppFunction.VideoRecord:
 							buttonTitle = (

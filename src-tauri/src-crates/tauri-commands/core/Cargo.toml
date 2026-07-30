@@ -19,6 +19,7 @@ xcap = { workspace = true }
 rayon = { workspace = true }
 
 get-selected-text = "^0.1"
+percent-encoding = "2.3"
 
 [target.'cfg(any(target_os = "macos"))'.dependencies]
 objc2 = { workspace = true }
