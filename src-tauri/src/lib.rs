@@ -46,6 +46,32 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 // ============================================================
+// 文件级诊断日志，绕过 tauri-plugin-log 的 filter，确保 release 模式下也能看到关键诊断信息
+// 日志写入到 app config 目录下的 debug/single-instance.log
+// ============================================================
+
+/// 文件级诊断日志，绕过 tauri-plugin-log 的 filter，确保 release 模式下也能看到关键诊断信息
+/// 日志写入到 app config 目录下的 `debug/single-instance.log`
+#[allow(dead_code)]
+fn debug_log(app: &tauri::AppHandle, msg: &str) {
+    if let Ok(config_dir) = app.path().app_config_dir() {
+        let debug_dir = config_dir.join("debug");
+        let _ = std::fs::create_dir_all(&debug_dir);
+        let log_path = debug_dir.join("single-instance.log");
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        let line = format!("[{}] {}\n", timestamp, msg);
+        let _ = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&log_path)
+            .and_then(|mut f| std::io::Write::write_all(&mut f, line.as_bytes()));
+    }
+}
+
+// ============================================================
 // --open-draw 触发防抖机制
 // 防止短时间内重复触发截图（如快捷键连按、多实例同时启动等场景）
 // ============================================================
@@ -362,26 +388,35 @@ pub fn run() {
         // -- single-instance: 单实例插件，处理多开请求 --
         // 当检测到已有实例运行时，通过回调将 --open-draw 参数转发给主实例
         .plugin(tauri_plugin_single_instance::init(|app, argv, _| {
+            // 文件级日志：绕过 tauri-plugin-log filter，release 下也可见
+            debug_log(app, &format!("[single_instance] callback triggered, argv={:?}", argv));
             log::info!("[single_instance] callback triggered, argv={:?}", argv);
             if has_open_draw_arg(&argv) {
                 // 次要实例携带 --open-draw 参数：通知主实例执行截图
+                debug_log(app, "[single_instance] branch: --open-draw");
                 log::info!("[single_instance] branch: --open-draw, scheduling screenshot");
                 schedule_open_draw(app.clone());
             } else if let Some(image_path) = extract_image_path_from_args(&argv) {
                 // 次要实例收到图片文件路径，在主实例中打开图片查看器
+                debug_log(app, &format!("[single_instance] branch: image path = {}", image_path));
                 log::info!("[single_instance] branch: image path '{}', creating image viewer", image_path);
                 let app_clone = app.clone();
                 let image_path_log = image_path.clone();
                 tauri::async_runtime::spawn(async move {
-                    if let Err(e) = snow_shot_tauri_commands_core::create_image_viewer_window(
-                        app_clone,
+                    match snow_shot_tauri_commands_core::create_image_viewer_window(
+                        app_clone.clone(),
                         image_path,
                     ).await {
-                        log::error!("[single_instance] create_image_viewer_window failed for path '{}': {}", image_path_log, e);
+                        Ok(_) => debug_log(&app_clone, &format!("[single_instance] create_image_viewer_window succeeded for path '{}'", image_path_log)),
+                        Err(e) => {
+                            debug_log(&app_clone, &format!("[single_instance] create_image_viewer_window FAILED for path '{}': {}", image_path_log, e));
+                            log::error!("[single_instance] create_image_viewer_window failed for path '{}': {}", image_path_log, e);
+                        }
                     }
                 });
             } else {
                 // 普通的多开请求：激活并显示主窗口
+                debug_log(app, "[single_instance] branch: activate main window");
                 log::info!("[single_instance] branch: activate main window");
                 let app_window = app.get_webview_window("main").expect("no main window");
                 app_window.show().unwrap();
@@ -487,11 +522,13 @@ pub fn run() {
             let args: Vec<String> = std::env::args().collect();
             if has_open_draw_arg(&args) {
                 // 主实例启动时也支持 --open-draw：直接触发截图
+                debug_log(app.handle(), "[setup] --open-draw detected, calling schedule_open_draw");
                 schedule_open_draw(app.handle().clone());
             } else if let Some(image_path) = extract_image_path_from_args(&args) {
                 // 检查是否通过"打开方式"或拖拽传递了图片文件
                 // 注意：不在此处创建窗口，HTTP server 可能尚未就绪
                 // 延迟到主窗口 page-load 事件触发后再创建
+                debug_log(app.handle(), &format!("[setup] image path detected, storing as pending: {}", image_path));
                 *pending_image_path.lock().unwrap() = Some(image_path);
             }
 

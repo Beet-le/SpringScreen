@@ -1215,6 +1215,26 @@ pub async fn create_image_viewer_window(
     app: tauri::AppHandle,
     file_path: String,
 ) -> Result<(), String> {
+    // 文件级诊断日志，绕过 tauri-plugin-log 的 filter，确保 release 模式下也能看到关键诊断信息
+    fn debug_log(app: &tauri::AppHandle, msg: &str) {
+        if let Ok(config_dir) = app.path().app_config_dir() {
+            let debug_dir = config_dir.join("debug");
+            let _ = std::fs::create_dir_all(&debug_dir);
+            let log_path = debug_dir.join("image-viewer.log");
+            let timestamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis())
+                .unwrap_or(0);
+            let line = format!("[{}] {}\n", timestamp, msg);
+            let _ = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&log_path)
+                .and_then(|mut f| std::io::Write::write_all(&mut f, line.as_bytes()));
+        }
+    }
+
+    debug_log(&app, &format!("[create_image_viewer_window] entry, file_path='{}'", file_path));
     log::info!("[create_image_viewer_window] creating window for file: {}", file_path);
     // 窗口标签：image-viewer-{timestamp}
     let label = format!(
@@ -1262,9 +1282,20 @@ pub async fn create_image_viewer_window(
             let _ = window.set_focus();
         }
     })
-    .build()
-    .map_err(|e| format!("[create_image_viewer_window] Failed to create window: {}", e))?;
-    log::info!("[create_image_viewer_window] window '{}' created successfully", window.label());
+    .build();
+
+    let window = match window {
+        Ok(w) => {
+            debug_log(&app, &format!("[create_image_viewer_window] window '{}' built successfully", w.label()));
+            log::info!("[create_image_viewer_window] window '{}' created successfully", w.label());
+            w
+        }
+        Err(e) => {
+            let err_msg = format!("[create_image_viewer_window] Failed to create window: {}", e);
+            debug_log(&app, &err_msg);
+            return Err(err_msg);
+        }
+    };
 
     // 恢复保存的窗口状态（大小和位置）
     if let Ok(config_state) = app.state::<std::sync::Arc<std::sync::Mutex<AppConfig>>>().lock() {
