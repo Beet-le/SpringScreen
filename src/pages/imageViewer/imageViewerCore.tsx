@@ -33,22 +33,13 @@ export const ImageViewerCore: React.FC<ImageViewerCoreProps> = ({
 	const [naturalWidth, setNaturalWidth] = useState(0);
 	const [naturalHeight, setNaturalHeight] = useState(0);
 	const [isDragging, setIsDragging] = useState(false);
-	// [已废弃] 旧的 dragStart 状态，拖拽改用 movementX/movementY 增量模式
-	// const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+	const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
-	// ============================================================
-	// 像素空间渲染模型（参考 voidImageViewer）
-	// ============================================================
-	// CSS 模型：left:0; top:0; transformOrigin:"0 0"; translate 独立属性
-	// - 图片渲染尺寸 = naturalWidth × zoom, naturalHeight × zoom
-	// - 图片左上角屏幕位置 = (panX, panY)（相对于容器左上角）
-	// - 图片上像素 P 的屏幕位置 = panX + P × zoom
-	// ============================================================
-
-	// 用 ref 同步最新状态值，供事件回调读取
+	// 用 ref 同步最新状态值，供滚轮回调读取
 	const zoomRef = useRef(zoom);
 	const panXRef = useRef(panX);
 	const panYRef = useRef(panY);
+	const rotationRef = useRef(rotation);
 	useEffect(() => {
 		zoomRef.current = zoom;
 	}, [zoom]);
@@ -58,31 +49,29 @@ export const ImageViewerCore: React.FC<ImageViewerCoreProps> = ({
 	useEffect(() => {
 		panYRef.current = panY;
 	}, [panY]);
+	useEffect(() => {
+		rotationRef.current = rotation;
+	}, [rotation]);
 
-	// 适应窗口（居中显示）— 像素空间计算
+	// 适应窗口（居中显示）
+	// 旋转 90°/270° 时视觉宽高互换，需据此计算正确的 fitZoom
 	const fitToWindow = useCallback(() => {
-		const container = containerRef.current;
-		if (!container || naturalWidth === 0 || naturalHeight === 0) return;
-		const rect = container.getBoundingClientRect();
-		const containerW = rect.width;
-		const containerH = rect.height;
+		if (!containerRef.current || naturalWidth === 0 || naturalHeight === 0)
+			return;
+		const containerRect = containerRef.current.getBoundingClientRect();
 
-		// 计算 fit 缩放（留 5% 边距）
-		const scaleX = containerW / naturalWidth;
-		const scaleY = containerH / naturalHeight;
-		const fitZoom = Math.min(scaleX, scaleY) * 0.95;
+		// 旋转 90°/270° 时视觉宽高互换
+		const rot = rotationRef.current;
+		const isSwapped = rot % 180 !== 0;
+		const effectiveW = isSwapped ? naturalHeight : naturalWidth;
+		const effectiveH = isSwapped ? naturalWidth : naturalHeight;
 
-		// 计算渲染尺寸
-		const renderW = naturalWidth * fitZoom;
-		const renderH = naturalHeight * fitZoom;
-
-		// 居中：图片左上角 = (容器尺寸 - 渲染尺寸) / 2
-		const centerX = (containerW - renderW) / 2;
-		const centerY = (containerH - renderH) / 2;
-
-		setZoom(fitZoom);
-		setPanX(centerX);
-		setPanY(centerY);
+		const scaleX = containerRect.width / effectiveW;
+		const scaleY = containerRect.height / effectiveH;
+		const fitScale = Math.min(scaleX, scaleY) * 0.95; // 留 5% 边距
+		setZoom(fitScale);
+		setPanX(0);
+		setPanY(0);
 	}, [naturalWidth, naturalHeight]);
 
 	// 图片加载完成后适应窗口
@@ -111,78 +100,59 @@ export const ImageViewerCore: React.FC<ImageViewerCoreProps> = ({
 		return () => window.removeEventListener("resize", handleResize);
 	}, [fitToWindow]);
 
-	// 鼠标滚轮缩放（以鼠标位置为中心）— voidImageViewer 像素空间公式
+	// 鼠标滚轮缩放（以鼠标位置为中心）- 使用原生事件监听以支持 passive: false
+	// 参考 voidImageViewer _viv_do_mousewheel_action：
+	//   old_cursor_px = cursor - render_left  →  new_cursor = old_cursor * rw_new / rw_old
+	//   等比映射到 CSS 模型：pan_new = pan * ratio - mouse_from_center * (ratio - 1)
 	useEffect(() => {
 		const el = containerRef.current;
 		if (!el) return;
 		const handler = (e: WheelEvent) => {
 			e.preventDefault();
-			const rect = el.getBoundingClientRect();
-
-			// 鼠标在容器中的位置（相对于容器左上角）
-			const mouseX = e.clientX - rect.left;
-			const mouseY = e.clientY - rect.top;
-
-			const currentZoom = zoomRef.current;
-			const currentPanX = panXRef.current;
-			const currentPanY = panYRef.current;
-
-			// 当前渲染尺寸
-			const renderW = naturalWidth * currentZoom;
-			const renderH = naturalHeight * currentZoom;
-
-			// 图片左上角位置
-			const imgLeft = currentPanX;
-			const imgTop = currentPanY;
-
-			// 鼠标在渲染图上的相对位置（像素坐标）
-			const cursorPx = mouseX - imgLeft;
-			const cursorPy = mouseY - imgTop;
-
-			// 计算新缩放
+			const container = containerRef.current;
+			if (!container) return;
+			const rect = container.getBoundingClientRect();
+			// 鼠标相对于容器中心的偏移
+			const mouseX = e.clientX - rect.left - rect.width / 2;
+			const mouseY = e.clientY - rect.top - rect.height / 2;
 			const delta = e.deltaY > 0 ? 0.9 : 1.1;
-			const newZoom = Math.max(0.1, Math.min(20, currentZoom * delta));
-			if (newZoom === currentZoom) return;
-
-			// 新渲染尺寸
-			const newRenderW = naturalWidth * newZoom;
-			const newRenderH = naturalHeight * newZoom;
-
-			// 缩放后鼠标位置的等比映射
-			const newCursorPx = (cursorPx * newRenderW) / renderW;
-			const newCursorPy = (cursorPy * newRenderH) / renderH;
-
-			// 反算新 pan：保持鼠标下像素不动
-			// mouseX = newPanX + newCursorPx
-			const newPanX = mouseX - newCursorPx;
-			const newPanY = mouseY - newCursorPy;
-
+			const prevZoom = zoomRef.current;
+			const newZoom = Math.max(0.1, Math.min(20, prevZoom * delta));
+			if (newZoom === prevZoom) return;
+			// 立即更新 ref，避免连续滚轮事件读到过期值
+			zoomRef.current = newZoom;
+			const ratio = newZoom / prevZoom;
+			// 保持鼠标下像素不动: pan_new = pan * ratio - mouse * (ratio - 1)
+			setPanX((prev) => prev * ratio - mouseX * (ratio - 1));
+			setPanY((prev) => prev * ratio - mouseY * (ratio - 1));
 			setZoom(newZoom);
-			setPanX(newPanX);
-			setPanY(newPanY);
 		};
 		el.addEventListener("wheel", handler, { passive: false });
 		return () => el.removeEventListener("wheel", handler);
-	}, [naturalWidth, naturalHeight]);
+	}, []);
 
 	// 双击适应窗口
 	const handleDoubleClick = useCallback(() => {
 		fitToWindow();
 	}, [fitToWindow]);
 
-	// 拖拽平移 — 使用 movementX/movementY 增量模式
-	const handleMouseDown = useCallback((e: React.MouseEvent) => {
-		if (e.button !== 0) return; // 只响应左键
-		setIsDragging(true);
-	}, []);
+	// 拖拽平移
+	const handleMouseDown = useCallback(
+		(e: React.MouseEvent) => {
+			if (e.button !== 0) return; // 只响应左键
+			setIsDragging(true);
+			setDragStart({ x: e.clientX - panX, y: e.clientY - panY });
+		},
+		[panX, panY],
+	);
 
 	const handleMouseMove = useCallback(
 		(e: React.MouseEvent) => {
 			if (!isDragging) return;
-			setPanX((prev) => prev + e.movementX);
-			setPanY((prev) => prev + e.movementY);
+			setPanX(e.clientX - dragStart.x);
+			setPanY(e.clientY - dragStart.y);
 		},
-		[isDragging],
+		[isDragging, dragStart],
 	);
 
 	const handleMouseUp = useCallback(() => {
@@ -205,73 +175,18 @@ export const ImageViewerCore: React.FC<ImageViewerCoreProps> = ({
 				case "G":
 					setFlipY((prev) => prev * -1);
 					break;
-				case "0": {
-					// 原始大小（zoom=1），渲染尺寸 = 原始像素尺寸，居中显示
-					const container = containerRef.current;
-					if (container) {
-						const rect = container.getBoundingClientRect();
-						setZoom(1);
-						setPanX((rect.width - naturalWidth) / 2);
-						setPanY((rect.height - naturalHeight) / 2);
-					} else {
-						setZoom(1);
-						setPanX(0);
-						setPanY(0);
-					}
+				case "0":
+					setZoom(1);
+					setPanX(0);
+					setPanY(0);
 					break;
-				}
 				case "+":
-				case "=": {
-					// 以容器中心为缩放中心，voidImageViewer 公式
-					const container = containerRef.current;
-					if (container) {
-						const rect = container.getBoundingClientRect();
-						const centerX = rect.width / 2;
-						const centerY = rect.height / 2;
-						const currentZoom = zoomRef.current;
-						const currentPanX = panXRef.current;
-						const currentPanY = panYRef.current;
-						const renderW = naturalWidth * currentZoom;
-						const renderH = naturalHeight * currentZoom;
-						const cursorPx = centerX - currentPanX;
-						const cursorPy = centerY - currentPanY;
-						const newZoom = Math.min(20, currentZoom * 1.1);
-						const newRenderW = naturalWidth * newZoom;
-						const newRenderH = naturalHeight * newZoom;
-						const newCursorPx = (cursorPx * newRenderW) / renderW;
-						const newCursorPy = (cursorPy * newRenderH) / renderH;
-						setZoom(newZoom);
-						setPanX(centerX - newCursorPx);
-						setPanY(centerY - newCursorPy);
-					}
+				case "=":
+					setZoom((prev) => Math.min(20, prev * 1.1));
 					break;
-				}
-				case "-": {
-					// 以容器中心为缩放中心，voidImageViewer 公式
-					const container = containerRef.current;
-					if (container) {
-						const rect = container.getBoundingClientRect();
-						const centerX = rect.width / 2;
-						const centerY = rect.height / 2;
-						const currentZoom = zoomRef.current;
-						const currentPanX = panXRef.current;
-						const currentPanY = panYRef.current;
-						const renderW = naturalWidth * currentZoom;
-						const renderH = naturalHeight * currentZoom;
-						const cursorPx = centerX - currentPanX;
-						const cursorPy = centerY - currentPanY;
-						const newZoom = Math.max(0.1, currentZoom * 0.9);
-						const newRenderW = naturalWidth * newZoom;
-						const newRenderH = naturalHeight * newZoom;
-						const newCursorPx = (cursorPx * newRenderW) / renderW;
-						const newCursorPy = (cursorPy * newRenderH) / renderH;
-						setZoom(newZoom);
-						setPanX(centerX - newCursorPx);
-						setPanY(centerY - newCursorPy);
-					}
+				case "-":
+					setZoom((prev) => Math.max(0.1, prev * 0.9));
 					break;
-				}
-				// 方向键平移（屏幕空间像素偏移）
 				case "ArrowLeft":
 					setPanX((prev) => prev + 50);
 					break;
@@ -291,7 +206,7 @@ export const ImageViewerCore: React.FC<ImageViewerCoreProps> = ({
 		};
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [naturalWidth, naturalHeight]);
+	}, []);
 
 	// Rust 端已在 create_image_viewer_window 中通过 set_size/set_position 恢复窗口状态
 	// 前端不再重复恢复，避免闪烁
@@ -343,45 +258,27 @@ export const ImageViewerCore: React.FC<ImageViewerCoreProps> = ({
 	}, []);
 
 	// 容器样式
-	// 使用 flex:1 替代 height:"100%"，确保在 WebView2 flex 布局中正确获取高度
 	const containerStyle: React.CSSProperties = {
 		width: "100%",
-		flex: "1 1 0",
-		minHeight: 0,
+		height: "100%",
 		overflow: "hidden",
 		cursor: isDragging ? "grabbing" : "grab",
 		position: "relative",
-		backgroundColor: "#1a1a1a",
+		backgroundColor: "#1e1e1e",
 	};
 
-	// [已废弃] 旧的 CSS 模型：left:50% + 负 margin 居中 + transformOrigin: "center center"
-	// 该模型依赖复杂的 CSS transform-origin 行为，图片不可见
-	// const imageStyle_old = {
-	// 	transform: `scale(${zoom}) rotate(${rotation}deg) scaleX(${flipX}) scaleY(${flipY})`,
-	// 	transformOrigin: "center center",
-	// 	transition: isDragging ? "none" : "transform 0.15s ease-out",
-	// 	maxWidth: "none",
-	// 	position: "absolute",
-	// 	left: "50%",
-	// 	top: "50%",
-	// 	marginLeft: naturalWidth > 0 ? `-${naturalWidth / 2}px` : undefined,
-	// 	marginTop: naturalHeight > 0 ? `-${naturalHeight / 2}px` : undefined,
-	// 	translate: `${panX}px ${panY}px`,
-	// 	userSelect: "none",
-	// };
-
-	// 图片样式 — 像素空间渲染模型（参考 voidImageViewer）
-	// left:0; top:0; transformOrigin:"0 0"; translate 是独立 CSS 属性
-	// scale 从左上角开始缩放，translate 将图片平移到正确位置
+	// 图片样式 — 缩放/旋转/翻转 统一围绕视觉中心（transformOrigin: "center center"）
+	// left:50%; top:50% + 负 margin 将图片中心对齐到容器中心，translate 做平移
+	// 不使用 CSS transition：pan 需瞬时同步才能保证滚轮以鼠标点为中心缩放
 	const imageStyle: React.CSSProperties = {
 		transform: `scale(${zoom}) rotate(${rotation}deg) scaleX(${flipX}) scaleY(${flipY})`,
-		transformOrigin: "0 0",
-		transition: isDragging ? "none" : "transform 0.15s ease-out",
+		transformOrigin: "center center",
 		maxWidth: "none",
-		maxHeight: "none",
 		position: "absolute",
-		left: 0,
-		top: 0,
+		left: "50%",
+		top: "50%",
+		marginLeft: naturalWidth > 0 ? `-${naturalWidth / 2}px` : undefined,
+		marginTop: naturalHeight > 0 ? `-${naturalHeight / 2}px` : undefined,
 		translate: `${panX}px ${panY}px`,
 		userSelect: "none",
 	};
@@ -394,7 +291,7 @@ export const ImageViewerCore: React.FC<ImageViewerCoreProps> = ({
 				display: "flex",
 				flexDirection: "column",
 				overflow: "hidden",
-				backgroundColor: "#1a1a1a",
+				backgroundColor: "#1e1e1e",
 			}}
 		>
 			<div
@@ -423,18 +320,9 @@ export const ImageViewerCore: React.FC<ImageViewerCoreProps> = ({
 				rotation={rotation}
 				onFitToWindow={fitToWindow}
 				onOriginalSize={() => {
-					// 原始大小（zoom=1），渲染尺寸 = 原始像素尺寸，居中显示
-					const container = containerRef.current;
-					if (container) {
-						const rect = container.getBoundingClientRect();
-						setZoom(1);
-						setPanX((rect.width - naturalWidth) / 2);
-						setPanY((rect.height - naturalHeight) / 2);
-					} else {
-						setZoom(1);
-						setPanX(0);
-						setPanY(0);
-					}
+					setZoom(1);
+					setPanX(0);
+					setPanY(0);
 				}}
 				onRotate={() => setRotation((prev) => (prev + 90) % 360)}
 				onFlipHorizontal={() => setFlipX((prev) => prev * -1)}

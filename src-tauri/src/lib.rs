@@ -134,23 +134,27 @@ fn extract_image_path_from_args(args: &[String]) -> Option<String> {
     None
 }
 
-/// 【Windows 专属】在 --open-draw 模式下，预检查并等待崩溃进程残留的单实例互斥锁释放
+/// 【Windows 专属】在 --open-draw 模式下，预清理崩溃进程残留的单实例互斥锁
 ///
-/// 背景：当 C# 托盘服务在旧进程崩溃后立即重启新进程时，Windows 内核对象可能尚未完全释放。
-///       崩溃进程持有的 single-instance Mutex 可能仍处于 signaled/abandoned 状态，
-///       导致新进程无法正确获取互斥锁，进而无法判断自己是主实例还是次要实例。
+/// 背景：当 C# 托盘服务在旧进程崩溃后立即重启新进程时，崩溃进程持有的
+///       single-instance Mutex 可能仍处于 abandoned 状态。
+///       如果不清理，tauri-plugin-single-instance 会看到 ERROR_ALREADY_EXISTS
+///       但 FindWindowW 返回 null（隐藏窗口不存在），进入僵尸状态。
 ///
-/// 策略：只检测和等待（不获取所有权），等待 OS 清理完崩溃进程的内核对象后退出，
-///       让 tauri-plugin-single-instance 插件正常进行主/次实例判断。
+/// 策略：获取 abandoned mutex 的所有权后立即释放，不保留额外句柄，
+///       等待 OS 完成内核对象回收后让插件重新创建干净的互斥锁。
 ///
-/// 重要：此处不获取互斥锁所有权，仅等待其释放后让插件自行处理。
+/// 注意：此函数会短暂获取 mutex 所有权（WAIT_ABANDONED），但会立即释放。
 #[cfg(target_os = "windows")]
 fn pre_acquire_single_instance_mutex_if_open_draw() {
     use std::ffi::OsStr;
     use std::os::windows::ffi::OsStrExt;
     use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
-    use windows_sys::Win32::System::Threading::{OpenMutexW, ReleaseMutex, WaitForSingleObject, MUTEX_ALL_ACCESS};
+    // 仅请求 SYNCHRONIZE 权限：最小化访问权限，避免不必要的权限提升
+    use windows_sys::Win32::System::Threading::{OpenMutexW, ReleaseMutex, WaitForSingleObject};
 
+    // SYNCHRONIZE = 0x00100000（等待/获取互斥锁所需的最小权限）
+    const SYNCHRONIZE: u32 = 0x00100000;
     // WAIT_OBJECT_0 = 0, WAIT_ABANDONED = 0x80（Win32 API 常量，windows-sys 未导出）
     const WAIT_OBJECT_0: u32 = 0x00000000;
     const WAIT_ABANDONED: u32 = 0x00000080;
@@ -170,14 +174,16 @@ fn pre_acquire_single_instance_mutex_if_open_draw() {
         .collect();
 
     const MAX_RETRIES: u32 = 3;
-    const RETRY_DELAY_MS: u64 = 500;
+    // 释放 abandoned mutex 后等待 OS 完成内核对象回收的时间
+    // 需要足够长，确保插件 CreateMutex 时不会看到残留的核对象
+    const RETRY_DELAY_MS: u64 = 1000;
     // 每次等待 200ms，如果活跃进程持有锁则会超时
     const WAIT_TIMEOUT_MS: u32 = 200;
 
     for attempt in 0..=MAX_RETRIES {
-        // 只打开已有的互斥锁，不创建（不获取所有权）
+        // 仅以 SYNCHRONIZE 权限打开互斥锁，最小化权限需求
         let hmutex: HANDLE =
-            unsafe { OpenMutexW(MUTEX_ALL_ACCESS, false.into(), wide_name.as_ptr()) };
+            unsafe { OpenMutexW(SYNCHRONIZE, false.into(), wide_name.as_ptr()) };
 
         if hmutex.is_null() {
             // 互斥锁不存在 —— 无残留锁，正常继续
@@ -187,22 +193,25 @@ fn pre_acquire_single_instance_mutex_if_open_draw() {
             return;
         }
 
-        // 互斥锁存在，短暂等待看是否被释放（崩溃进程清理后的 signaled 状态）
+        // 互斥锁存在，短暂等待看是否被释放（崩溃进程清理后的 abandoned 状态）
         let wait_result = unsafe { WaitForSingleObject(hmutex, WAIT_TIMEOUT_MS) };
 
         match wait_result {
             WAIT_OBJECT_0 | WAIT_ABANDONED => {
                 // WaitForSingleObject 返回 WAIT_OBJECT_0/WAIT_ABANDONED 时，调用线程已获取 mutex 所有权
                 // 必须先 ReleaseMutex 归还所有权，再 CloseHandle 释放句柄，否则 mutex 泄露
+                // 释放后不保留任何额外句柄，让 OS 能完全回收内核对象
                 unsafe { ReleaseMutex(hmutex) };
                 unsafe { CloseHandle(hmutex) };
                 log::debug!(
-                    "[single-instance-pre-check] Mutex released at attempt {} (result={}), retrying...",
+                    "[single-instance-pre-check] Mutex released at attempt {} (result={}), waiting {}ms for OS cleanup...",
                     attempt,
-                    wait_result
+                    wait_result,
+                    RETRY_DELAY_MS
                 );
+                // 等待 OS 完成内核对象回收，避免插件看到残留互斥锁进入僵尸状态
+                std::thread::sleep(std::time::Duration::from_millis(RETRY_DELAY_MS));
                 if attempt < MAX_RETRIES {
-                    std::thread::sleep(std::time::Duration::from_millis(RETRY_DELAY_MS));
                     continue;
                 }
                 return;
@@ -548,6 +557,16 @@ pub fn run() {
 
                 // Layer 3: 启动后台守护线程，周期性扫描进程树并禁用 WebView2 子进程的效能模式
                 snow_shot_app_os::efficiency_mode::spawn_efficiency_mode_guard();
+
+                // 修复 UIPI 阻断：允许低权限进程（如文件关联启动的普通用户进程）
+                // 通过 WM_COPYDATA 向本进程（可能以管理员权限运行）发送单实例通信消息
+                // 场景：C# 托盘以管理员启动后，双击图片（普通用户）无法触发单实例回调
+                {
+                    use windows_sys::Win32::UI::WindowsAndMessaging::{
+                        ChangeWindowMessageFilter, WM_COPYDATA, MSGFLT_ADD,
+                    };
+                    unsafe { ChangeWindowMessageFilter(WM_COPYDATA, MSGFLT_ADD) };
+                }
             }
 
             #[cfg(target_os = "macos")]
