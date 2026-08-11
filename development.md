@@ -85,3 +85,21 @@ pnpm tauri dev
 pnpm build 
 pnpm tauri build
 ```
+
+### 图片查看器（Image Viewer）
+
+图片查看器采用 mipmap 金字塔渲染：Rust 侧（`src-tauri/src-crates/app-services/src/image_viewer_service.rs`）
+解码图片后生成多级缩略图 PNG，前端 Canvas 按当前缩放级别挑选「够用的最小 mip」绘制。
+
+几个关键约束：
+
+- **mip level 0 受双重限制**：最长边 <= 8192px（`MAX_MIP0_DIM`）且总像素 <= 3200 万（`MAX_MIP0_PIXELS`）。
+  WebView2 / Chromium 对超大位图的解码和 `drawImage` 会静默失败（表现为画布全黑），
+  所以全分辨率像素数据永远不会进入 WebView2。32MP 以内的图片不缩放，1:1 画质无损。
+- **单图像素上限为 4 亿像素**（`MAX_PIXELS`），超过会返回中文错误提示。
+- mip PNG 缓存位于 `%AppData%\Roaming\XiaoDaShuai\image_viewer\<路径哈希>\`，
+  窗口关闭时自动清理。
+
+> ⚠️ 如果修改了 `MAX_MIP0_DIM`、`MAX_MIP0_PIXELS`、`MAX_MIP_LEVELS`、`MIN_MIP_DIM` 等 mip 生成参数，
+> 建议清空 `%AppData%\Roaming\XiaoDaShuai\image_viewer\` 目录再验证。
+> （当前实现每次打开图片都会先删除并重建该图片对应的缓存子目录，正常使用无需手动清理。）

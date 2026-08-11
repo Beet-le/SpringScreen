@@ -733,6 +733,8 @@ pub fn run() {
             core::set_run_log,
             core::set_exclude_from_capture,
             image_viewer::create_image_viewer_window,
+            core::scan_image_dir,
+            core::toggle_image_viewer_fullscreen,
             config::save_image_viewer_window_state,
             config::load_image_viewer_window_state,
             core::show_main_window,

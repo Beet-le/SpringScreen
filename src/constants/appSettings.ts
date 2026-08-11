@@ -267,7 +267,7 @@ Priority order (highest to lowest):
 	[AppSettingsGroup.FunctionFixedContent]: {
 		zoomWithMouse: true,
 		autoResizeWindow: true,
-		autoOcr: true,
+		autoOcr: false,
 		autoCopyToClipboard: false,
 		initialPosition: AppSettingsFixedContentInitialPosition.MousePosition,
 	},

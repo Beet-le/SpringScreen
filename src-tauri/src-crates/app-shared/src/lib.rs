@@ -15,16 +15,13 @@ pub struct ImageViewerWindowState {
     pub height: f64,
     pub x: f64,
     pub y: f64,
+    #[serde(default)]
+    pub maximized: bool,
 }
 
 impl Default for ImageViewerWindowState {
     fn default() -> Self {
-        Self {
-            width: 800.0,
-            height: 600.0,
-            x: 0.0,
-            y: 0.0,
-        }
+        Self { width: 800.0, height: 600.0, x: 0.0, y: 0.0, maximized: false }
     }
 }
 

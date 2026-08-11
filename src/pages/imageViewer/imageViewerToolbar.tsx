@@ -1,16 +1,22 @@
-import { useCallback } from "react";
-
 interface ImageViewerToolbarProps {
 	filePath: string;
 	naturalWidth: number;
 	naturalHeight: number;
 	zoom: number;
 	rotation: number;
+	currentIndex: number;
+	totalCount: number;
+	hasPrev: boolean;
+	hasNext: boolean;
+	fullscreen: boolean;
 	onFitToWindow: () => void;
 	onOriginalSize: () => void;
 	onRotate: () => void;
 	onFlipHorizontal: () => void;
 	onFlipVertical: () => void;
+	onPrev: () => void;
+	onNext: () => void;
+	onToggleFullscreen: () => void;
 }
 
 const toolbarStyle: React.CSSProperties = {
@@ -62,39 +68,33 @@ export const ImageViewerToolbar: React.FC<ImageViewerToolbarProps> = ({
 	naturalHeight,
 	zoom,
 	rotation,
+	currentIndex,
+	totalCount,
+	hasPrev,
+	hasNext,
+	fullscreen,
 	onFitToWindow,
 	onOriginalSize,
 	onRotate,
 	onFlipHorizontal,
 	onFlipVertical,
+	onPrev,
+	onNext,
+	onToggleFullscreen,
 }) => {
-	// 从文件路径提取文件名
 	const fileName = filePath.split(/[\\/]/).pop() ?? filePath;
-
-	const handleFitToWindow = useCallback(() => {
-		onFitToWindow();
-	}, [onFitToWindow]);
-
-	const handleOriginalSize = useCallback(() => {
-		onOriginalSize();
-	}, [onOriginalSize]);
-
-	const handleRotate = useCallback(() => {
-		onRotate();
-	}, [onRotate]);
-
-	const handleFlipH = useCallback(() => {
-		onFlipHorizontal();
-	}, [onFlipHorizontal]);
-
-	const handleFlipV = useCallback(() => {
-		onFlipVertical();
-	}, [onFlipVertical]);
 
 	return (
 		<div style={toolbarStyle}>
 			<div style={infoStyle}>
-				<span style={{ fontWeight: 500 }}>{fileName}</span>
+				<span style={{ fontWeight: 500 }} title={filePath}>
+					{fileName}
+				</span>
+				{totalCount > 1 && (
+					<span style={{ opacity: 0.7 }}>
+						{currentIndex + 1}/{totalCount}
+					</span>
+				)}
 				{naturalWidth > 0 && naturalHeight > 0 && (
 					<span style={{ opacity: 0.7 }}>
 						{naturalWidth} × {naturalHeight}
@@ -104,26 +104,41 @@ export const ImageViewerToolbar: React.FC<ImageViewerToolbarProps> = ({
 				{rotation !== 0 && <span style={{ opacity: 0.7 }}>{rotation}°</span>}
 			</div>
 			<div style={buttonsStyle}>
+				{/* 导航 */}
 				<button
 					type="button"
 					style={buttonStyle}
-					onClick={handleFitToWindow}
+					onClick={onPrev}
+					disabled={!hasPrev}
+					title="上一张 (←)"
+				>
+					◀
+				</button>
+				<button
+					type="button"
+					style={buttonStyle}
+					onClick={onNext}
+					disabled={!hasNext}
+					title="下一张 (→)"
+				>
+					▶
+				</button>
+
+				{/* 缩放 */}
+				<button
+					type="button"
+					style={buttonStyle}
+					onClick={onFitToWindow}
 					title="适应窗口"
 				>
 					适应
 				</button>
+
+				{/* 变换 */}
 				<button
 					type="button"
 					style={buttonStyle}
-					onClick={handleOriginalSize}
-					title="原始大小 (0)"
-				>
-					1:1
-				</button>
-				<button
-					type="button"
-					style={buttonStyle}
-					onClick={handleRotate}
+					onClick={onRotate}
 					title="旋转 (R)"
 				>
 					旋转
@@ -131,18 +146,28 @@ export const ImageViewerToolbar: React.FC<ImageViewerToolbarProps> = ({
 				<button
 					type="button"
 					style={buttonStyle}
-					onClick={handleFlipH}
+					onClick={onFlipHorizontal}
 					title="水平翻转 (F)"
 				>
-					水平翻转
+					↔
 				</button>
 				<button
 					type="button"
 					style={buttonStyle}
-					onClick={handleFlipV}
+					onClick={onFlipVertical}
 					title="垂直翻转 (G)"
 				>
-					垂直翻转
+					↕
+				</button>
+
+				{/* 全屏 */}
+				<button
+					type="button"
+					style={buttonStyle}
+					onClick={onToggleFullscreen}
+					title="全屏 (F11)"
+				>
+					{fullscreen ? "⤢" : "⤡"}
 				</button>
 			</div>
 		</div>

@@ -11,6 +11,7 @@ regex = { workspace = true }
 log = { workspace = true }
 dashmap = { workspace = true }
 tokio = { workspace = true }
+image = { workspace = true }
 
 snow-shot-app-utils = { workspace = true }
 snow-shot-app-shared = { workspace = true }
@@ -24,6 +25,7 @@ ort = { version = "2.0.0-rc.10", default-features = false }
 windows = { workspace = true, features = [
     "Win32_UI_WindowsAndMessaging",
     "Win32_Foundation",
+    "Win32_System_LibraryLoader",
 ] }
 
 [target.'cfg(any(target_os = "macos"))'.dependencies]

@@ -1,0 +1,21 @@
+[package]
+name = "snow-shot-image-viewer-native"
+version = "0.1.0"
+edition = "2024"
+description = "原生 Win32 + GDI+ 图片查看器 — 零 WebView2 依赖,极速启动,低内存"
+
+[dependencies]
+log = { workspace = true }
+image = { workspace = true }
+snow-shot-app-services = { workspace = true }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { workspace = true, features = [
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_Graphics_Gdi",
+    "Win32_System_LibraryLoader",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Com",
+] }

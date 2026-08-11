@@ -18,6 +18,7 @@ members = [
     "src-crates/tauri-commands/http-service",    # Tauri IPC 命令：HTTP/云上传
     "src-crates/webview",                        # WebView 共享缓冲区（GPU 零拷贝）
     "src-crates/http-services",                  # HTTP 服务
+    "src-crates/image-viewer-native",            # 原生图片查看器（Direct2D/GDI+）
 ]
 
 [package]
@@ -98,6 +99,7 @@ snow-shot-plugin-service = { path = "src-crates/plugin-service" }
 snow-shot-webview = { path = "src-crates/webview" }
 snow-shot-http-services = { path = "src-crates/http-services" }
 snow-shot-global-state = { path = "src-crates/global_state" }
+snow-shot-image-viewer-native = { path = "src-crates/image-viewer-native" }
 
 
 [dependencies]
@@ -116,6 +118,7 @@ snow-shot-webview = { workspace = true }
 snow-shot-http-services = { workspace = true }
 snow-shot-tauri-commands-http-service = { workspace = true }
 snow-shot-global-state = { workspace = true }
+snow-shot-image-viewer-native = { workspace = true }
 
 # workspace 依赖
 tokio = { workspace = true }

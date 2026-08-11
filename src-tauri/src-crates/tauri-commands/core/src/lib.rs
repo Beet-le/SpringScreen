@@ -20,7 +20,7 @@ use snow_shot_app_services::{
     hot_load_page_service::HotLoadPageService, resize_window_service::ResizeWindowService,
 };
 use snow_shot_app_shared::{AppConfig, ElementRect, EnigoManager};
-use snow_shot_app_utils::{get_target_monitor, monitor_info::MonitorRect};
+use snow_shot_app_utils::{get_target_monitor, monitor_info::MonitorList, monitor_info::MonitorRect};
 
 pub async fn exit_app(handle: tauri::AppHandle) {
     handle.exit(0);
@@ -1278,6 +1278,7 @@ pub async fn create_image_viewer_window(
     .visible(false)
     .on_page_load(|window, payload| {
         if let PageLoadEvent::Finished = payload.event() {
+            let _ = window.unminimize();
             let _ = window.show();
             let _ = window.set_focus();
         }
@@ -1297,14 +1298,27 @@ pub async fn create_image_viewer_window(
         }
     };
 
-    // 恢复保存的窗口状态（大小和位置）
+    // 恢复保存的窗口状态（大小、位置、最大化）
     if let Ok(config_state) = app.state::<std::sync::Arc<std::sync::Mutex<AppConfig>>>().lock() {
         let state = &config_state.image_viewer_window_state;
-        if state.width > 0.0 && state.height > 0.0 {
+        if state.maximized {
+            let _ = window.maximize();
+        } else if state.width > 0.0 && state.height > 0.0 {
             let _ = window.set_size(tauri::LogicalSize::new(state.width, state.height));
-            // 仅当保存了有效位置时才覆盖默认的居中位置
             if state.x != 0.0 || state.y != 0.0 {
                 let _ = window.set_position(tauri::LogicalPosition::new(state.x, state.y));
+                let monitors = MonitorList::all(true);
+                let center_x = state.x + state.width / 2.0;
+                let center_y = state.y + state.height / 2.0;
+                let on_screen = monitors.iter().any(|m| {
+                    center_x >= m.rect.min_x as f64
+                        && center_x <= m.rect.max_x as f64
+                        && center_y >= m.rect.min_y as f64
+                        && center_y <= m.rect.max_y as f64
+                });
+                if !on_screen {
+                    let _ = window.center();
+                }
             }
         }
     }
@@ -1332,5 +1346,46 @@ pub async fn show_main_window(app: tauri::AppHandle, auto_hide: bool) -> Result<
     main_window.unminimize().unwrap();
     main_window.set_focus().unwrap();
 
+    Ok(())
+}
+
+const IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "webp", "bmp", "gif", "tiff", "tif"];
+
+#[derive(Serialize, Clone)]
+pub struct ImageDirInfo {
+    pub files: Vec<String>,
+    pub current_index: usize,
+}
+
+pub fn scan_image_dir(file_path: String) -> Result<ImageDirInfo, String> {
+    let path = std::path::Path::new(&file_path);
+    let dir = path.parent().ok_or_else(|| format!("no parent dir: {}", file_path))?;
+    let mut files: Vec<String> = Vec::new();
+    for entry in std::fs::read_dir(dir).map_err(|e| format!("read dir: {}", e))?.flatten() {
+        let p = entry.path();
+        if !p.is_file() { continue; }
+        if let Some(ext) = p.extension().and_then(|e| e.to_str()) {
+            if IMAGE_EXTENSIONS.contains(&ext.to_lowercase().as_str()) {
+                files.push(p.to_string_lossy().to_string());
+            }
+        }
+    }
+    files.sort_by(|a, b| {
+        let an = std::path::Path::new(a).file_name().and_then(|n| n.to_str()).unwrap_or("");
+        let bn = std::path::Path::new(b).file_name().and_then(|n| n.to_str()).unwrap_or("");
+        an.to_lowercase().cmp(&bn.to_lowercase())
+    });
+    let idx = files.iter().position(|f| f == &file_path).unwrap_or(0);
+    Ok(ImageDirInfo { files, current_index: idx })
+}
+
+pub fn toggle_image_viewer_fullscreen(window: tauri::WebviewWindow, enter: bool) -> Result<(), String> {
+    if enter {
+        window.set_decorations(false).map_err(|e| format!("{}", e))?;
+        window.maximize().map_err(|e| format!("{}", e))?;
+    } else {
+        window.set_decorations(true).map_err(|e| format!("{}", e))?;
+        window.unmaximize().map_err(|e| format!("{}", e))?;
+    }
     Ok(())
 }

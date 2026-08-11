@@ -6536,6 +6536,7 @@ dependencies = [
  "snow-shot-app-utils",
  "snow-shot-global-state",
  "snow-shot-http-services",
+ "snow-shot-image-viewer-native",
  "snow-shot-plugin-service",
  "snow-shot-tauri-commands-core",
  "snow-shot-tauri-commands-file",
@@ -6606,6 +6607,7 @@ dependencies = [
  "dashmap",
  "device_query",
  "ffmpeg-sidecar",
+ "image",
  "log",
  "macos-accessibility-client",
  "num_cpus",
@@ -6679,6 +6681,16 @@ dependencies = [
  "serde",
  "thiserror 2.0.17",
  "tokio",
+]
+
+[[package]]
+name = "snow-shot-image-viewer-native"
+version = "0.1.0"
+dependencies = [
+ "image",
+ "log",
+ "snow-shot-app-services",
+ "windows 0.61.3",
 ]
 
 [[package]]

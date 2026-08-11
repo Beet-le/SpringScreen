@@ -1,6 +1,8 @@
 pub mod device_event_handler_service;
 pub mod file_cache_service;
 pub mod free_drag_window_service;
+#[cfg(target_os = "windows")]
+pub mod gdiplus_decoder;
 pub mod hot_load_page_service;
 pub mod listen_key_service;
 pub mod listen_mouse_service;

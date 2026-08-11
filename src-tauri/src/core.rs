@@ -1,7 +1,7 @@
 use snow_shot_app_shared::{ElementRect, EnigoManager};
 use snow_shot_global_state::WebViewSharedBufferState;
 use snow_shot_tauri_commands_core::{
-    FullScreenDrawWindowLabels, MonitorsBoundingBox, VideoRecordWindowLabels,
+    FullScreenDrawWindowLabels, ImageDirInfo, MonitorsBoundingBox, VideoRecordWindowLabels,
 };
 use std::{path::PathBuf, sync::Arc};
 use tauri::{Manager, PhysicalPosition, PhysicalSize, command, ipc::Response};
@@ -530,4 +530,14 @@ pub async fn trim_process_working_set() -> Result<(), String> {
     }
 
     Ok(())
+}
+
+#[command]
+pub fn scan_image_dir(file_path: String) -> Result<ImageDirInfo, String> {
+    snow_shot_tauri_commands_core::scan_image_dir(file_path)
+}
+
+#[command]
+pub fn toggle_image_viewer_fullscreen(window: tauri::WebviewWindow, enter: bool) -> Result<(), String> {
+    snow_shot_tauri_commands_core::toggle_image_viewer_fullscreen(window, enter)
 }
