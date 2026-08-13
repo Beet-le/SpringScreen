@@ -1,8 +1,5 @@
 
-<div align="center">
-<a name="readme-top"></a>
-<h1>SpringScreen！一款轻量好用的Windows截图工具，低配电脑友好</h1>
-</div>
+
 
 ## 软件介绍
 本项目基于开源项目 [mg-chao/snow-shot](https://github.com/mg-chao/snow-shot) 二次开发，针对低配置 Windows 设备深度优化，核心改进如下：
