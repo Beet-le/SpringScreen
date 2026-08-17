@@ -899,25 +899,6 @@ const DrawToolbarCore: React.FC<DrawToolbarProps> = ({
 								disable={disableNormalScreenshotTool}
 							/>
 
-							{/* 固定到屏幕 */}
-							<ToolButton
-								hidden={customToolbarToolHiddenMap?.[DrawState.Fixed]}
-								componentKey={DrawToolbarKeyEventKey.FixedTool}
-								icon={
-									<FixedIcon
-										style={{
-											fontSize: "1.15em",
-											position: "relative",
-											bottom: "0.02em",
-										}}
-									/>
-								}
-								drawState={DrawState.Fixed}
-								onClick={() => {
-									onFixed();
-								}}
-							/>
-
 							{/* OCR */}
 							<ToolButton
 								hidden={
@@ -974,6 +955,25 @@ const DrawToolbarCore: React.FC<DrawToolbarProps> = ({
 								drawState={DrawState.ScrollScreenshot}
 								onClick={() => {
 									onToolClick(DrawState.ScrollScreenshot);
+								}}
+							/>
+
+							{/* 固定到屏幕 */}
+							<ToolButton
+								hidden={customToolbarToolHiddenMap?.[DrawState.Fixed]}
+								componentKey={DrawToolbarKeyEventKey.FixedTool}
+								icon={
+									<FixedIcon
+										style={{
+											fontSize: "1.15em",
+											position: "relative",
+											bottom: "0.02em",
+										}}
+									/>
+								}
+								drawState={DrawState.Fixed}
+								onClick={() => {
+									onFixed();
 								}}
 							/>
 

@@ -406,7 +406,7 @@ const TextSVG = () => (
 		aria-hidden="true"
 	>
 		<path
-			d="M192 192h640v128H576v512H448V320H192V192z"
+			d="M192 192h640v128H576v576H448V320H192V192z"
 			p-id="7194"
 		></path>
 	</svg>
