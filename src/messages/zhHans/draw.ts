@@ -48,7 +48,7 @@ export const draw = {
 	"draw.highlightTool": "高亮",
 	"draw.mosaicTool": "马赛克",
 	"draw.serialNumberTool": "序列号",
-	"draw.blurTool": "滤镜",
+	"draw.blurTool": "马赛克",
 	"draw.textTool": "文字",
 	"draw.eraserTool": "橡皮擦",
 	"draw.undoTool": "撤销",

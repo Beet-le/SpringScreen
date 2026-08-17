@@ -154,7 +154,11 @@ const DrawCoreComponent: React.FC<{
 
 	const initialData = useMemo<ExcalidrawInitialDataState>(() => {
 		return {
-			appState: { viewBackgroundColor: "#00000000" },
+			appState: {
+				viewBackgroundColor: "#00000000",
+				// 首次使用默认描边颜色为红色，用户主动调整后以持久化值为准
+				currentItemStrokeColor: "#f5222d",
+			},
 		};
 	}, []);
 

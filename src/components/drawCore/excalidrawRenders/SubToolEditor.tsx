@@ -15,7 +15,7 @@ const WatermarkTextInput = () => {
 	);
 	const { getDrawCoreAction } = useContext(DrawContext);
 	const [watermarkText, setWatermarkText, watermarkTextRef] =
-		useStateRef<string>("");
+		useStateRef<string>("水印");
 
 	const updateWatermarkText = useMemo(() => {
 		return debounce(() => {
@@ -42,7 +42,8 @@ const WatermarkTextInput = () => {
 				(element) => element.type === "watermark",
 			);
 
-			setWatermarkText(watermarkElement?.watermarkText ?? "");
+			// 水印文本为空时回退到默认文本
+			setWatermarkText(watermarkElement?.watermarkText || "水印");
 		}, 128);
 	}, [getDrawCoreAction, setWatermarkText]);
 

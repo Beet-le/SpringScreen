@@ -925,7 +925,7 @@ const DrawToolbarCore: React.FC<DrawToolbarProps> = ({
 									!isReadyStatus?.(PLUGIN_ID_RAPID_OCR)
 								}
 								componentKey={DrawToolbarKeyEventKey.OcrDetectTool}
-								icon={<OcrDetectIcon style={{ fontSize: "0.88em" }} />}
+								icon={<OcrDetectIcon style={{ fontSize: "1.05em" }} />}
 								drawState={DrawState.OcrDetect}
 								disable={
 									disableNormalScreenshotTool ||
@@ -946,7 +946,7 @@ const DrawToolbarCore: React.FC<DrawToolbarProps> = ({
 									)
 								}
 								componentKey={DrawToolbarKeyEventKey.OcrTranslateTool}
-								icon={<OcrTranslateIcon style={{ fontSize: "1em" }} />}
+								icon={<OcrTranslateIcon style={{ fontSize: "1.05em" }} />}
 								drawState={DrawState.OcrTranslate}
 								disable={
 									disableNormalScreenshotTool ||

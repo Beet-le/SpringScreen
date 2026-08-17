@@ -2,7 +2,7 @@ import { Button, Flex, theme } from "antd";
 import React, { useCallback, useContext, useMemo, useState } from "react";
 import { useIntl } from "react-intl";
 import { DrawStatePublisher } from "@/components/drawCore/extra";
-import { FilterFreeDrawIcon, FilterIcon } from "@/components/icons";
+import { FilterFreeDrawIcon, MosaicIcon } from "@/components/icons";
 import {
 	AppSettingsActionContext,
 	AppSettingsPublisher,
@@ -60,7 +60,7 @@ const BlurGroupToolCore: React.FC<{
 			<ToolButton
 				hidden={customToolbarToolHiddenMap?.[DrawState.Blur]}
 				componentKey={DrawToolbarKeyEventKey.BlurTool}
-				icon={<FilterIcon />}
+				icon={<MosaicIcon />}
 				drawState={DrawState.Blur}
 				disable={disable}
 				key="blur"

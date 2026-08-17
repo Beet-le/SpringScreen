@@ -107,7 +107,7 @@ export const defaultAppSettingsData: AppSettingsData = {
 		lastFilterTool: DrawState.Blur,
 		lastExtraTool: ExtraToolList.None,
 		lastDrawExtraTool: DrawState.Idle,
-		lastWatermarkText: "",
+		lastWatermarkText: "水印",
 		delayScreenshotSeconds: 0,
 		lockDragAspectRatio: 0,
 		enableTabFindChildrenElements: true,

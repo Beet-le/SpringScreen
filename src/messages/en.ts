@@ -109,7 +109,7 @@ export const en = {
 	"draw.penTool": "Pen",
 	"draw.highlightTool": "Highlight",
 	"draw.mosaicTool": "Mosaic",
-	"draw.blurTool": "Blur",
+	"draw.blurTool": "Mosaic",
 	"draw.textTool": "Text",
 	"draw.eraserTool": "Eraser",
 	"draw.undoTool": "Undo",

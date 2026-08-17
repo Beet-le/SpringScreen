@@ -123,9 +123,9 @@ export const WatermarkTool = () => {
 			return false;
 		}
 
-		// 创建 watermark 元素
+		// 创建 watermark 元素（历史水印文本为空时使用默认文本）
 		const watermarkElement = generateWatermarkElement(
-			getAppSettings()[AppSettingsGroup.Cache].lastWatermarkText,
+			getAppSettings()[AppSettingsGroup.Cache].lastWatermarkText || "水印",
 			appState,
 		);
 		excalidrawAPI.updateScene({

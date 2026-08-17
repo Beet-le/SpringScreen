@@ -104,7 +104,7 @@ export const zhHant = {
 	"draw.penTool": "畫筆",
 	"draw.highlightTool": "高亮",
 	"draw.mosaicTool": "馬賽克",
-	"draw.blurTool": "滤镜",
+	"draw.blurTool": "馬賽克",
 	"draw.textTool": "文字",
 	"draw.eraserTool": "橡皮擦",
 	"draw.undoTool": "撤銷",

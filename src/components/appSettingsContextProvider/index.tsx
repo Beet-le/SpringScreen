@@ -392,7 +392,7 @@ const AppSettingsContextProviderCore: React.FC<{
 					lastWatermarkText:
 						typeof newSettings?.lastWatermarkText === "string"
 							? newSettings.lastWatermarkText
-							: (prevSettings?.lastWatermarkText ?? ""),
+							: (prevSettings?.lastWatermarkText ?? "水印"),
 					lastExtraTool:
 						typeof newSettings?.lastExtraTool === "number"
 							? newSettings.lastExtraTool
