@@ -188,6 +188,7 @@ export const ImageViewerCore: React.FC<ImageViewerCoreProps> = ({
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const imgRef = useRef<HTMLImageElement | null>(null);
 	const thumbLevelsRef = useRef<ThumbLevel[]>([]);
+	const [isGif, setIsGif] = useState(false);
 
 	// 合并 zoom/panX/panY 为单一状态，减少 React 重渲染次数
 	const [viewTransform, setViewTransform] = useState<ViewTransform>({
@@ -261,6 +262,12 @@ export const ImageViewerCore: React.FC<ImageViewerCoreProps> = ({
 		canvasPixelWRef.current = 0;
 		canvasPixelHRef.current = 0;
 
+		// 检测是否为动态图片文件（GIF、APNG、WebP 动图）
+		const animatedImageExtensions = ['.gif', '.webp', '.apng'];
+		const fileExtension = filePath.toLowerCase().split('.').pop();
+		const isAnimatedImage = fileExtension ? animatedImageExtensions.includes(`.${fileExtension}`) : false;
+		setIsGif(isAnimatedImage);
+
 		const img = new Image();
 		img.decoding = "async";
 		let cancelled = false;
@@ -275,7 +282,10 @@ export const ImageViewerCore: React.FC<ImageViewerCoreProps> = ({
 				setImgH(img.naturalHeight);
 
 				// 首屏快速生成：只生成 [1024, 2048]，~1s 完成即可显示图片
-				thumbLevelsRef.current = buildInitialLevels(img);
+				// 动态图片（GIF/APNG/WebP）不生成缩略图金字塔，直接使用原图
+				if (!isAnimatedImage) {
+					thumbLevelsRef.current = buildInitialLevels(img);
+				}
 				setLoading(false);
 			} catch (_err) {
 				if (cancelled) return;
@@ -285,7 +295,10 @@ export const ImageViewerCore: React.FC<ImageViewerCoreProps> = ({
 					imgRef.current = img;
 					setImgW(img.naturalWidth);
 					setImgH(img.naturalHeight);
-					thumbLevelsRef.current = buildInitialLevels(img);
+					// 动态图片（GIF/APNG/WebP）不生成缩略图金字塔
+					if (!isAnimatedImage) {
+						thumbLevelsRef.current = buildInitialLevels(img);
+					}
 					setLoading(false);
 				};
 				img.onerror = () => {
@@ -627,6 +640,17 @@ export const ImageViewerCore: React.FC<ImageViewerCoreProps> = ({
 		display: "block",
 	};
 
+	// GIF 图片样式（使用 img 标签直接显示，支持动画播放）
+	const gifImgStyle: React.CSSProperties = {
+		position: "absolute",
+		top: "50%",
+		left: "50%",
+		transformOrigin: "center center",
+		transform: `translate(-50%, -50%) scale(${viewTransform.zoom}) rotate(${rotation}deg) scaleX(${flipX}) scaleY(${flipY}) translate(${viewTransform.panX}px, ${viewTransform.panY}px)`,
+		maxWidth: "none",
+		maxHeight: "none",
+	};
+
 	return (
 		<div
 			style={{
@@ -648,7 +672,20 @@ export const ImageViewerCore: React.FC<ImageViewerCoreProps> = ({
 				onDoubleClick={handleDoubleClick}
 				onContextMenu={(e) => e.preventDefault()}
 			>
-				<canvas ref={canvasRef} style={vs} />
+				{/* 动态图片（GIF/APNG/WebP）使用 img 标签直接显示，支持动画播放 */}
+				{isGif && !loading && (
+					<img
+						src={convertFileSrc(filePath)}
+						style={{
+							...gifImgStyle,
+							width: imgW,
+							height: imgH,
+						}}
+						draggable={false}
+					/>
+				)}
+				{/* 静态图片使用 Canvas 渲染，支持高性能缩放和平移 */}
+				{!isGif && <canvas ref={canvasRef} style={vs} />}
 				{loading && (
 					<div
 						style={{

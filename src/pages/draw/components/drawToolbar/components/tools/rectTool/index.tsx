@@ -2,7 +2,7 @@ import { Button, Flex, theme } from "antd";
 import React, { useCallback, useContext, useMemo, useState } from "react";
 import { useIntl } from "react-intl";
 import { DrawStatePublisher } from "@/components/drawCore/extra";
-import { DiamondIcon, RectIcon } from "@/components/icons";
+import { DiamondIcon, RectIcon, CircleIcon } from "@/components/icons";
 import {
 	AppSettingsActionContext,
 	AppSettingsPublisher,
@@ -93,6 +93,22 @@ const RectToolCore: React.FC<{
 		);
 	}, [disable, drawState, intl, onToolClickAction, updateLastRectTool]);
 
+	const ellipseButton = useMemo(() => {
+		return (
+			<Button
+				icon={<CircleIcon style={{ fontSize: "1em" }} />}
+				title={intl.formatMessage({ id: "draw.ellipseTool" })}
+				type={getButtonTypeByState(drawState === DrawState.Ellipse)}
+				key="ellipse"
+				onClick={() => {
+					onToolClickAction(DrawState.Ellipse);
+					updateLastRectTool(DrawState.Ellipse);
+				}}
+				disabled={disable}
+			/>
+		);
+	}, [disable, drawState, intl, onToolClickAction, updateLastRectTool]);
+
 	let mainToolbarButton: React.ReactNode = customToolbarToolHiddenMap?.[
 		DrawState.Rect
 	]
@@ -108,11 +124,17 @@ const RectToolCore: React.FC<{
 		!customToolbarToolHiddenMap?.[DrawState.Diamond]
 	) {
 		mainToolbarButton = diamondButton;
+	} else if (
+		lastRectTool === DrawState.Ellipse &&
+		!customToolbarToolHiddenMap?.[DrawState.Ellipse]
+	) {
+		mainToolbarButton = ellipseButton;
 	}
 
 	if (
 		customToolbarToolHiddenMap?.[DrawState.Rect] &&
-		customToolbarToolHiddenMap?.[DrawState.Diamond]
+		customToolbarToolHiddenMap?.[DrawState.Diamond] &&
+		customToolbarToolHiddenMap?.[DrawState.Ellipse]
 	) {
 		mainToolbarButton = undefined;
 	}
@@ -129,6 +151,7 @@ const RectToolCore: React.FC<{
 				<Flex align="center" gap={token.paddingXS} className="popover-toolbar">
 					{rectButton}
 					{!customToolbarToolHiddenMap?.[DrawState.Diamond] && diamondButton}
+					{!customToolbarToolHiddenMap?.[DrawState.Ellipse] && ellipseButton}
 				</Flex>
 			}
 		>

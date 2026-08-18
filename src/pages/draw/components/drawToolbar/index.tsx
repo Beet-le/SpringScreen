@@ -803,18 +803,6 @@ const DrawToolbarCore: React.FC<DrawToolbarProps> = ({
 								disable={disableNormalScreenshotTool}
 							/>
 
-							{/* 椭圆 */}
-							<ToolButton
-								hidden={customToolbarToolHiddenMap?.[DrawState.Ellipse]}
-								componentKey={DrawToolbarKeyEventKey.EllipseTool}
-								icon={<CircleIcon style={{ fontSize: "1em" }} />}
-								drawState={DrawState.Ellipse}
-								disable={disableNormalScreenshotTool}
-								onClick={() => {
-									onToolClick(DrawState.Ellipse);
-								}}
-							/>
-
 							{/* 箭头 */}
 							<ArrowTool
 								customToolbarToolHiddenMap={customToolbarToolHiddenMap}
@@ -906,7 +894,7 @@ const DrawToolbarCore: React.FC<DrawToolbarProps> = ({
 									!isReadyStatus?.(PLUGIN_ID_RAPID_OCR)
 								}
 								componentKey={DrawToolbarKeyEventKey.OcrDetectTool}
-								icon={<OcrDetectIcon style={{ fontSize: "1.05em" }} />}
+								icon={<OcrDetectIcon style={{ fontSize: "1.00em" }} />}
 								drawState={DrawState.OcrDetect}
 								disable={
 									disableNormalScreenshotTool ||

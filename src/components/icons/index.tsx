@@ -406,7 +406,7 @@ const TextSVG = () => (
 		aria-hidden="true"
 	>
 		<path
-			d="M192 192h640v128H576v576H448V320H192V192z"
+			d="M192 192h640v96H560v608H464V288H192V192z"
 			p-id="7194"
 		></path>
 	</svg>
@@ -706,7 +706,7 @@ const OcrDetectSVG = () => (
 		aria-hidden="true"
 	>
 		<path
-			d="M101.333333 304V101.333333H304"
+			d="M101.333333 270V150A48.666667 48.666667 0 0 1 150 101.333333H270"
 			fill="none"
 			stroke="currentColor"
 			strokeWidth="74.666667"
@@ -715,7 +715,7 @@ const OcrDetectSVG = () => (
 			p-id="2611"
 		></path>
 		<path
-			d="M922.666667 304V101.333333H720"
+			d="M922.666667 270V150A48.666667 48.666667 0 0 0 874 101.333333H754"
 			fill="none"
 			stroke="currentColor"
 			strokeWidth="74.666667"
@@ -724,7 +724,7 @@ const OcrDetectSVG = () => (
 			p-id="2612"
 		></path>
 		<path
-			d="M101.333333 720V922.666667H304"
+			d="M101.333333 754V874A48.666667 48.666667 0 0 0 150 922.666667H270"
 			fill="none"
 			stroke="currentColor"
 			strokeWidth="74.666667"
@@ -733,7 +733,7 @@ const OcrDetectSVG = () => (
 			p-id="2613"
 		></path>
 		<path
-			d="M922.666667 720V922.666667H720"
+			d="M922.666667 754V874A48.666667 48.666667 0 0 1 874 922.666667H754"
 			fill="none"
 			stroke="currentColor"
 			strokeWidth="74.666667"
@@ -746,7 +746,7 @@ const OcrDetectSVG = () => (
 			y="512"
 			textAnchor="middle"
 			dominantBaseline="central"
-			fontSize="600"
+			fontSize="520"
 			fontWeight="bold"
 			fontFamily="'Microsoft YaHei', 'PingFang SC', sans-serif"
 			fill="currentColor"
