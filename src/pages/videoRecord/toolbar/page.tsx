@@ -66,13 +66,13 @@ import {
 	VideoMaxSize,
 } from "@/types/appSettings";
 import type { ElementRect } from "@/types/commands/screenshot";
+import { trackVideoRecord } from "@/utils/analytics";
 import {
 	generateImageFileName,
 	getVideoRecordSaveDirectory,
 } from "@/utils/file";
 import { appError } from "@/utils/log";
 import { getPlatformValue } from "@/utils/platform";
-import { trackVideoRecord } from "@/utils/analytics";
 import type { VideoRecordWindowInfo } from "@/utils/types";
 import { setWindowRect } from "@/utils/window";
 import { zIndexs } from "@/utils/zIndex";
@@ -295,10 +295,10 @@ export const VideoRecordToolbarPage: React.FC = () => {
 					gifMaxWidth,
 					gifMaxHeight,
 				);
-				
+
 				// 统计停止录制
 				trackVideoRecord("stop", durationRef.current);
-				
+
 				setVideoRecordState(VideoRecordState.Idle);
 
 				stopDurationTimer();
@@ -463,7 +463,14 @@ export const VideoRecordToolbarPage: React.FC = () => {
 		}
 
 		if (!isReadyStatus(PLUGIN_ID_FFMPEG)) {
-			getCurrentWindow().close();
+			// 通过 close_video_record_window 关闭并同步清理 Rust 侧窗口 state，
+			// 避免 state 残留导致下次点击视频录制命中失效的复用分支
+			closeVideoRecordWindow().catch((error) => {
+				appError(
+					"[VideoRecordToolbarPage] closeVideoRecordWindow error",
+					error,
+				);
+			});
 		}
 	}, [isReadyStatus]);
 
@@ -530,7 +537,7 @@ export const VideoRecordToolbarPage: React.FC = () => {
 										.then(() => {
 											// 统计暂停录制
 											trackVideoRecord("pause", durationRef.current);
-									
+
 											setVideoRecordState(VideoRecordState.Paused);
 
 											stopDurationTimer();
@@ -565,7 +572,7 @@ export const VideoRecordToolbarPage: React.FC = () => {
 										.then(() => {
 											// 统计恢复录制
 											trackVideoRecord("resume");
-									
+
 											setVideoRecordState(VideoRecordState.Recording);
 
 											startDurationTimer();

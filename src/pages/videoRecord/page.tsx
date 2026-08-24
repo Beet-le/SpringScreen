@@ -3,7 +3,10 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { theme } from "antd";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
-import { setCurrentWindowAlwaysOnTop } from "@/commands/core";
+import {
+	closeVideoRecordWindow,
+	setCurrentWindowAlwaysOnTop,
+} from "@/commands/core";
 import { listenKeyStart, listenKeyStop } from "@/commands/listenKey";
 import { EventListenerContext } from "@/components/eventListener";
 import {
@@ -448,7 +451,11 @@ export const VideoRecordPage: React.FC = () => {
 		}
 
 		if (!isReadyStatus(PLUGIN_ID_FFMPEG)) {
-			getCurrentWindow().close();
+			// 通过 close_video_record_window 关闭并同步清理 Rust 侧窗口 state，
+			// 避免 state 残留导致下次点击视频录制命中失效的复用分支
+			closeVideoRecordWindow().catch((error) => {
+				appError("[VideoRecordPage] closeVideoRecordWindow error", error);
+			});
 		}
 	}, [isReadyStatus]);
 

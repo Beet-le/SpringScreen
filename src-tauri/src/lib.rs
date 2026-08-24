@@ -260,6 +260,114 @@ fn schedule_open_draw(app: tauri::AppHandle) {
     });
 }
 
+// ============================================================
+// 截图蒙版卡死看门狗
+//
+// 背景：截图框选后点击视频录制，偶尔会出现 draw 窗口蒙版残留、
+//       CaptureState 卡在 capturing=true 的场景（前端 JS 异常/竞态导致），
+//       此时 --open-draw 会被 trigger_screenshot_core 直接拒绝，
+//       表现为"画布蒙版覆盖整个屏幕、类似卡死"。
+//
+// 策略（运行于 Rust tokio runtime，独立于 WebView2，前端 JS 卡死也能生效）：
+//   1. 每 30s 轮询 CaptureState.capturing 的持续时长
+//   2. 持续超过阈值（默认 10 分钟）判定为"蒙版卡死"，执行进程内自愈：
+//      - 强制隐藏所有 draw-* 窗口并放行鼠标穿透
+//      - emit finish-screenshot 通知前端清理资源（JS 存活时生效）
+//      - 重置 capturing=false，恢复 --open-draw 可用
+//   3. 连续自愈 3 次仍反复卡死 → 主动退出进程，交由外部托盘服务重启
+// ============================================================
+async fn capture_stuck_watchdog(app: tauri::AppHandle) {
+    const WATCHDOG_INTERVAL_SECS: u64 = 30;
+    const STUCK_THRESHOLD_SECS: u64 = 10 * 60;
+    const MAX_RECOVERY_COUNT: u32 = 3;
+
+    let mut stuck_started_at: Option<std::time::Instant> = None;
+    let mut recovery_count: u32 = 0;
+
+    loop {
+        tokio::time::sleep(std::time::Duration::from_secs(WATCHDOG_INTERVAL_SECS)).await;
+
+        let is_capturing = app.state::<Mutex<CaptureState>>().lock().await.capturing;
+
+        if is_capturing {
+            let started_at = match stuck_started_at {
+                Some(started_at) => started_at,
+                None => {
+                    // 首次发现 capturing=true，记录起始时间
+                    stuck_started_at = Some(std::time::Instant::now());
+                    log::debug!(
+                        "[capture-stuck-watchdog] capturing=true detected, starting stuck timer"
+                    );
+                    continue;
+                }
+            };
+
+            if started_at.elapsed().as_secs() < STUCK_THRESHOLD_SECS {
+                continue;
+            }
+
+            log::error!(
+                "[capture-stuck-watchdog] capture state stuck for {}s, recovering (recovery #{})...",
+                started_at.elapsed().as_secs(),
+                recovery_count + 1
+            );
+
+            // 1. 强制隐藏所有 draw 窗口并放行鼠标（Rust 直接操作窗口，前端卡死也生效）
+            let draw_labels: Vec<String> = app
+                .webview_windows()
+                .keys()
+                .filter(|label| label.starts_with("draw-"))
+                .cloned()
+                .collect();
+
+            for label in &draw_labels {
+                if let Some(window) = app.get_webview_window(label) {
+                    let _ = window.set_ignore_cursor_events(true);
+                    let _ = window.hide();
+                    log::warn!(
+                        "[capture-stuck-watchdog] force hidden draw window '{}'",
+                        label
+                    );
+                }
+            }
+
+            // 2. 通知前端清理内部状态（前端 JS 存活时生效；JS 卡死时由本步兜底隐藏窗口）
+            for label in &draw_labels {
+                if let Some(window) = app.get_webview_window(label) {
+                    let _ = window.emit("finish-screenshot", ());
+                }
+            }
+
+            // 3. 重置 capturing 状态，恢复 --open-draw 触发能力
+            {
+                let capture_state_handle = app.state::<Mutex<CaptureState>>();
+                let mut capture_state = capture_state_handle.lock().await;
+                capture_state.capturing = false;
+            }
+            log::warn!(
+                "[capture-stuck-watchdog] capture state reset to false, --open-draw recovered"
+            );
+
+            stuck_started_at = None;
+            recovery_count += 1;
+
+            // 反复卡死：进程内自愈无法根治，主动退出交由外部服务重启
+            if recovery_count >= MAX_RECOVERY_COUNT {
+                log::error!(
+                    "[capture-stuck-watchdog] stuck {} times consecutively, exiting process for external restart",
+                    recovery_count
+                );
+                app.exit(0);
+            }
+        } else if stuck_started_at.is_some() {
+            log::debug!(
+                "[capture-stuck-watchdog] capturing back to false, stuck timer cleared"
+            );
+            stuck_started_at = None;
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // ============================================================
@@ -574,6 +682,12 @@ pub fn run() {
                 // macOS 下不在 dock 显示图标
                 app.set_activation_policy(tauri::ActivationPolicy::Prohibited);
             }
+
+            // ============================================================
+            // 启动截图蒙版卡死看门狗：检测 capturing 状态长时间残留并自愈，
+            // 独立于 WebView2 运行，前端 JS 卡死时也能恢复 --open-draw 可用性
+            // ============================================================
+            tauri::async_runtime::spawn(capture_stuck_watchdog(app.handle().clone()));
 
             // ============================================================
             // 拦截主窗口关闭事件：隐藏而非销毁，实现"最小化到托盘"效果

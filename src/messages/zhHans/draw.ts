@@ -117,6 +117,7 @@ export const draw = {
 	"draw.extraTool.videoRecord": "视频录制",
 	"draw.extraTool.scanQrcode.error": "未识别到有效二维码",
 	"draw.extraTool.videoRecord.multiMonitor": "MacOS 暂不支持跨屏录制",
+	"draw.extraTool.videoRecord.selectRectEmpty": "请先框选要录制的区域",
 	"draw.scrollScreenshot.tip": "单击截图区域进行自动滚动",
 	"draw.scrollScreenshot.tip2": "如果无法滚动窗口，请双击截图区域以聚焦窗口",
 	"draw.selectText": "选取文本",

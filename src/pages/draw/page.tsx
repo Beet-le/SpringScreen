@@ -542,11 +542,17 @@ const DrawPageCore: React.FC<{
 			}
 
 			window.getSelection()?.removeAllRanges();
-			await Promise.all([
-				imageLayerActionRef.current?.onCaptureFinish(),
-				selectLayerActionRef.current?.onCaptureFinish(),
-				drawLayerActionRef.current?.onCaptureFinish(),
-			]);
+			try {
+				// 各 layer 的清理逻辑互不影响：任一 layer 清理失败都不应阻断窗口隐藏与状态重置，
+				// 否则会导致蒙版残留、CaptureState 卡在 capturing=true，后续 --open-draw 全部失效（表现为"卡死"）
+				await Promise.allSettled([
+					imageLayerActionRef.current?.onCaptureFinish(),
+					selectLayerActionRef.current?.onCaptureFinish(),
+					drawLayerActionRef.current?.onCaptureFinish(),
+				]);
+			} catch (error) {
+				appError("[DrawPageCore] onCaptureFinish error", error);
+			}
 
 			setCaptureEvent({
 				event: CaptureEvent.onCaptureFinish,
@@ -568,7 +574,9 @@ const DrawPageCore: React.FC<{
 
 			// 等待 1 帧，确保截图窗口内的元素均隐藏完成
 			setTimeout(() => {
-				hideWindow();
+				hideWindow().catch((error) => {
+					appError("[DrawPageCore] hideWindow error", error);
+				});
 			}, 17);
 		},
 		[

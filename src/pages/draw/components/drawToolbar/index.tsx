@@ -58,11 +58,11 @@ import {
 } from "@/types/appSettings";
 import { DrawToolbarKeyEventKey } from "@/types/components/drawToolbar";
 import { DrawState } from "@/types/draw";
+import { trackToolUsage } from "@/utils/analytics";
 import { getExcalidrawCanvas } from "@/utils/excalidraw";
 import { appWarn } from "@/utils/log";
 import { ScreenshotType } from "@/utils/types";
 import { zIndexs } from "@/utils/zIndex";
-import { trackToolUsage } from "@/utils/analytics";
 import {
 	CaptureEvent,
 	type CaptureEventParams,
@@ -321,6 +321,10 @@ const DrawToolbarCore: React.FC<DrawToolbarProps> = ({
 			if (prev === drawState && prev !== DrawState.Idle) {
 				if (drawState === DrawState.ScrollScreenshot) {
 					next = DrawState.Idle;
+				} else if (drawState === DrawState.VideoRecord) {
+					// 视频录制重复点击：保持 VideoRecord 状态，由按钮 onClick 直接重试执行录制
+					// （若上次 finishCapture 失败导致状态卡在 VideoRecord，重复点击可自愈）
+					next = DrawState.VideoRecord;
 				} else {
 					next = DrawState.Select;
 				}

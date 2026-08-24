@@ -580,8 +580,28 @@ pub async fn create_video_record_window(
         );
 
         if let Some(window) = window {
-            window
-                .emit(
+            // 复用已有录制窗口：主窗口与 toolbar 窗口都需要同步新的选区参数
+            if let Err(e) = window.emit(
+                "reload-video-record",
+                VideoRecordWindowInfo {
+                    select_rect_min_x,
+                    select_rect_min_y,
+                    select_rect_max_x,
+                    select_rect_max_y,
+                },
+            ) {
+                log::error!(
+                    "[create_video_record_window] Failed to emit reload-video-record to main window: {}",
+                    e
+                );
+            }
+
+            if let Some(toolbar_window) = app.get_webview_window(
+                video_record_window_labels
+                    .toolbar_window_label
+                    .as_str(),
+            ) {
+                if let Err(e) = toolbar_window.emit(
                     "reload-video-record",
                     VideoRecordWindowInfo {
                         select_rect_min_x,
@@ -589,11 +609,25 @@ pub async fn create_video_record_window(
                         select_rect_max_x,
                         select_rect_max_y,
                     },
-                )
-                .unwrap();
+                ) {
+                    log::error!(
+                        "[create_video_record_window] Failed to emit reload-video-record to toolbar window: {}",
+                        e
+                    );
+                }
+            }
 
             return;
         }
+    }
+
+    // 窗口已销毁但 state 未清理（如 ffmpeg 插件未就绪时前端直接关闭窗口）：
+    // 清空残留 state，走下方重建流程，避免下次调用继续命中失效分支
+    if video_record_window_labels.is_some() {
+        log::warn!(
+            "[create_video_record_window] cached window labels are stale, clearing state and recreating windows"
+        );
+        *video_record_window_labels = None;
     }
 
     // 先从服务中获取两个窗口（必须串行以避免竞态条件）
@@ -728,10 +762,17 @@ pub async fn close_video_record_window(
     video_record_window_label: tauri::State<'_, Mutex<Option<VideoRecordWindowLabels>>>,
 ) -> Result<(), String> {
     let mut video_record_window_labels = video_record_window_label.lock().await;
-    let VideoRecordWindowLabels {
+    // state 可能已被并发清理（如窗口被系统关闭后），None 时直接返回避免 panic
+    let Some(VideoRecordWindowLabels {
         video_record_window_label,
         toolbar_window_label,
-    } = video_record_window_labels.take().unwrap();
+    }) = video_record_window_labels.take()
+    else {
+        log::warn!(
+            "[close_video_record_window] state is None, nothing to close"
+        );
+        return Ok(());
+    };
 
     let window = app.get_webview_window(video_record_window_label.as_str());
     if let Some(window) = window {
