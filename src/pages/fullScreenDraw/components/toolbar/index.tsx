@@ -40,6 +40,7 @@ import { RectTool } from "@/pages/draw/components/drawToolbar/components/tools/r
 import { type AppSettingsData, AppSettingsGroup } from "@/types/appSettings";
 import { DrawToolbarKeyEventKey } from "@/types/components/drawToolbar";
 import { DrawState } from "@/types/draw";
+import { trackToolUsage } from "@/utils/analytics";
 import { zIndexs } from "@/utils/zIndex";
 import { useDrawContext } from "../../extra";
 
@@ -74,6 +75,9 @@ export const FullScreenDrawToolbar: React.FC<{
 
 	const onToolClick = useCallback(
 		(drawState: DrawState) => {
+			// 统计工具使用
+			trackToolUsage(drawState, "click");
+
 			const drawCoreAction = getDrawCoreAction();
 
 			const prev = getDrawState();

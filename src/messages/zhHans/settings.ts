@@ -8,6 +8,8 @@ export const settings = {
 	"settings.theme.dark": "暗黑",
 	"settings.theme.system": "跟随系统",
 	"settings.theme.mainColor": "主色",
+	"settings.commonSettings.enableAnalytics": "允许匿名使用统计",
+	"settings.commonSettings.enableAnalytics.tip": "开启后将匿名发送工具使用统计数据，帮助我们改进产品（不包含任何截图内容或个人隐私信息）",
 	"settings.themeSkinSettings": "主题皮肤",
 	"settings.themeSkinSettings.skinPath": "皮肤路径",
 	"settings.themeSkinSettings.skinOpacity": "皮肤透明度",

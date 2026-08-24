@@ -541,3 +541,12 @@ pub fn scan_image_dir(file_path: String) -> Result<ImageDirInfo, String> {
 pub fn toggle_image_viewer_fullscreen(window: tauri::WebviewWindow, enter: bool) -> Result<(), String> {
     snow_shot_tauri_commands_core::toggle_image_viewer_fullscreen(window, enter)
 }
+
+/// 获取计算机名/设备名（用于统计标识）
+#[command]
+pub fn get_system_username() -> String {
+    // Windows: COMPUTERNAME, Linux/macOS: HOSTNAME
+    std::env::var("COMPUTERNAME")
+        .or_else(|_| std::env::var("HOSTNAME"))
+        .unwrap_or_else(|_| "unknown".to_string())
+}

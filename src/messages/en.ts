@@ -8,6 +8,8 @@ export const en = {
 	"menu.tools": "Toolbox",
 	"menu.tools.translation": "Translation",
 	"settings.commonSettings": "Common Settings",
+	"settings.commonSettings.enableAnalytics": "Allow Anonymous Usage Statistics",
+	"settings.commonSettings.enableAnalytics.tip": "When enabled, anonymous tool usage statistics will be sent to help us improve the product (no screenshot content or personal privacy information is included)",
 	"settings.language": "Language",
 	"settings.darkMode": "Dark Mode",
 	"settings.controlNode": "Selection Control Style",

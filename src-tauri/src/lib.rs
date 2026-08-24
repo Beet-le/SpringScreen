@@ -779,6 +779,7 @@ pub fn run() {
             http_services::upload_to_s3,
             hot_load_page::hot_load_page_init,
             hot_load_page::hot_load_page_add_page,
+            core::get_system_username,
             global_state::set_capture_state,
             global_state::get_capture_state,
             global_state::set_read_clipboard_state,

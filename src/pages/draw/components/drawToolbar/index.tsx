@@ -62,6 +62,7 @@ import { getExcalidrawCanvas } from "@/utils/excalidraw";
 import { appWarn } from "@/utils/log";
 import { ScreenshotType } from "@/utils/types";
 import { zIndexs } from "@/utils/zIndex";
+import { trackToolUsage } from "@/utils/analytics";
 import {
 	CaptureEvent,
 	type CaptureEventParams,
@@ -259,6 +260,9 @@ const DrawToolbarCore: React.FC<DrawToolbarProps> = ({
 	const { isReadyStatus, isReady } = usePluginServiceContext();
 	const onToolClick = useCallback(
 		(drawState: DrawState) => {
+			// 统计工具使用
+			trackToolUsage(drawState, "click");
+
 			const prev = getDrawState();
 
 			if (drawState === DrawState.ScrollScreenshot) {

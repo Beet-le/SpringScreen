@@ -18,6 +18,7 @@ import {
 	Select,
 	Space,
 	Spin,
+	Switch,
 	theme,
 } from "antd";
 import type { AggregationColor } from "antd/es/color-picker/color";
@@ -27,6 +28,7 @@ import { ContentWrap } from "@/components/contentWrap";
 import { GroupTitle } from "@/components/groupTitle";
 import { IconLabel } from "@/components/iconLable";
 import { DarkModeIcon, LanguageIcon } from "@/components/icons";
+import { setTrackingEnabled } from "@/utils/analytics";
 import { PathInput } from "@/components/pathInput";
 import { ResetSettingsButton } from "@/components/resetSettingsButton";
 import { getDefaultIconPath } from "@/components/trayIconLoader";
@@ -72,6 +74,8 @@ export const GeneralSettingsPage = () => {
 						settings[AppSettingsGroup.Common]
 				) {
 					commonForm.setFieldsValue(settings[AppSettingsGroup.Common]);
+					// 同步统计开关到 localStorage
+					setTrackingEnabled(settings[AppSettingsGroup.Common].enableAnalytics);
 				}
 
 				if (
@@ -379,6 +383,10 @@ export const GeneralSettingsPage = () => {
 				form={commonForm}
 				onValuesChange={(_, values) => {
 					updateAppSettings(AppSettingsGroup.Common, values, true, true, true);
+					// 同步统计开关到 localStorage
+					if (values.enableAnalytics !== undefined) {
+						setTrackingEnabled(values.enableAnalytics);
+					}
 				}}
 				layout="vertical"
 			>
@@ -417,6 +425,21 @@ export const GeneralSettingsPage = () => {
 								</Select>
 							</Form.Item>
 						</Col>
+						<Col span={12}>
+							<Form.Item
+								name="enableAnalytics"
+								valuePropName="checked"
+								label={
+									<IconLabel
+										label={<FormattedMessage id="settings.commonSettings.enableAnalytics" />}
+										tooltipTitle={<FormattedMessage id="settings.commonSettings.enableAnalytics.tip" />}
+									/>
+								}
+							>
+								<Switch />
+							</Form.Item>
+						</Col>
+
 					</Row>
 				</Spin>
 			</Form>

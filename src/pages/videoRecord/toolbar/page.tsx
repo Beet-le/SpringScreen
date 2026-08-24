@@ -72,6 +72,7 @@ import {
 } from "@/utils/file";
 import { appError } from "@/utils/log";
 import { getPlatformValue } from "@/utils/platform";
+import { trackVideoRecord } from "@/utils/analytics";
 import type { VideoRecordWindowInfo } from "@/utils/types";
 import { setWindowRect } from "@/utils/window";
 import { zIndexs } from "@/utils/zIndex";
@@ -294,7 +295,10 @@ export const VideoRecordToolbarPage: React.FC = () => {
 					gifMaxWidth,
 					gifMaxHeight,
 				);
-
+				
+				// 统计停止录制
+				trackVideoRecord("stop", durationRef.current);
+				
 				setVideoRecordState(VideoRecordState.Idle);
 
 				stopDurationTimer();
@@ -361,6 +365,9 @@ export const VideoRecordToolbarPage: React.FC = () => {
 			videoMaxHeight,
 		)
 			.then(() => {
+				// 统计开始录制
+				trackVideoRecord("start");
+
 				setVideoRecordState(VideoRecordState.Recording);
 
 				stopDurationTimer();
@@ -521,6 +528,9 @@ export const VideoRecordToolbarPage: React.FC = () => {
 									setPauseRecordLoading(true);
 									videoRecordPause()
 										.then(() => {
+											// 统计暂停录制
+											trackVideoRecord("pause", durationRef.current);
+									
 											setVideoRecordState(VideoRecordState.Paused);
 
 											stopDurationTimer();
@@ -553,6 +563,9 @@ export const VideoRecordToolbarPage: React.FC = () => {
 									setResumeRecordLoading(true);
 									videoRecordResume()
 										.then(() => {
+											// 统计恢复录制
+											trackVideoRecord("resume");
+									
 											setVideoRecordState(VideoRecordState.Recording);
 
 											startDurationTimer();

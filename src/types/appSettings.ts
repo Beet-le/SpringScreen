@@ -219,6 +219,8 @@ export type AppSettingsData = {
 		language: AppSettingsLanguage;
 		/** 浏览器语言，用于自动切换语言 */
 		browserLanguage: string;
+		/** 允许匿名使用统计 */
+		enableAnalytics: boolean;
 	};
 	[AppSettingsGroup.ThemeSkin]: {
 		/** 皮肤路径 */

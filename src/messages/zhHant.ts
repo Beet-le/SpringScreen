@@ -8,6 +8,8 @@ export const zhHant = {
 	"menu.tools": "工具箱",
 	"menu.tools.translation": "翻譯",
 	"settings.commonSettings": "常用設定",
+	"settings.commonSettings.enableAnalytics": "允許匿名使用統計",
+	"settings.commonSettings.enableAnalytics.tip": "開啟後將匿名傳送工具使用統計資料，協助我們改進產品（不包含任何截圖內容或個人隱私資訊）",
 	"settings.language": "語言",
 	"settings.darkMode": "主題",
 	"settings.controlNode": "選取範圍控制樣式",

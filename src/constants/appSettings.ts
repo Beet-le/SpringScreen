@@ -41,6 +41,7 @@ export const defaultAppSettingsData: AppSettingsData = {
 		enableCompactLayout: false,
 		language: AppSettingsLanguage.ZHHans,
 		browserLanguage: "",
+		enableAnalytics: true, // 默认允许统计
 	},
 	[AppSettingsGroup.ThemeSkin]: {
 		skinPath: "",
