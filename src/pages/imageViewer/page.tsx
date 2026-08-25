@@ -39,13 +39,18 @@ export const ImageViewerPage: React.FC = () => {
 
 	const goPrev = useCallback(() => {
 		const idx = currentIndex - 1;
-		if (idx >= 0 && dirFiles[idx]) setCurrentFilePath(dirFiles[idx]);
+		if (idx >= 0 && dirFiles[idx]) {
+			setCurrentFilePath(dirFiles[idx]);
+			setCurrentIndex(idx);
+		}
 	}, [currentIndex, dirFiles]);
 
 	const goNext = useCallback(() => {
 		const idx = currentIndex + 1;
-		if (idx < dirFiles.length && dirFiles[idx])
+		if (idx < dirFiles.length && dirFiles[idx]) {
 			setCurrentFilePath(dirFiles[idx]);
+			setCurrentIndex(idx);
+		}
 	}, [currentIndex, dirFiles]);
 
 	if (!ready) return null;

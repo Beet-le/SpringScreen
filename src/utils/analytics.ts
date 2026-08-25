@@ -78,8 +78,8 @@ const getSessionId = (): string => {
  */
 const sendTrackRequest = async (event: TrackEvent): Promise<void> => {
   try {
-    // TODO: 替换为你的实际统计接口地址
-    const trackApiUrl = "https://your-api.com/track";
+    // 埋点接口地址（可通过环境变量 ANALYTICS_API_URL 配置，默认为后端地址）
+    const trackApiUrl = import.meta.env.ANALYTICS_API_URL || "https://your-api-domain.com/track";
 
     // 获取系统用户名（工号）
     const username = await getSystemUsername();

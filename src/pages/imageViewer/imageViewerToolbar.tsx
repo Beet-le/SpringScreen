@@ -1,21 +1,16 @@
 interface ImageViewerToolbarProps {
-	filePath: string;
 	naturalWidth: number;
 	naturalHeight: number;
 	zoom: number;
 	rotation: number;
 	currentIndex: number;
 	totalCount: number;
-	hasPrev: boolean;
-	hasNext: boolean;
 	fullscreen: boolean;
 	onFitToWindow: () => void;
 	onOriginalSize: () => void;
 	onRotate: () => void;
 	onFlipHorizontal: () => void;
 	onFlipVertical: () => void;
-	onPrev: () => void;
-	onNext: () => void;
 	onToggleFullscreen: () => void;
 }
 
@@ -63,33 +58,23 @@ const buttonStyle: React.CSSProperties = {
 };
 
 export const ImageViewerToolbar: React.FC<ImageViewerToolbarProps> = ({
-	filePath,
 	naturalWidth,
 	naturalHeight,
 	zoom,
 	rotation,
 	currentIndex,
 	totalCount,
-	hasPrev,
-	hasNext,
 	fullscreen,
 	onFitToWindow,
 	onOriginalSize,
 	onRotate,
 	onFlipHorizontal,
 	onFlipVertical,
-	onPrev,
-	onNext,
 	onToggleFullscreen,
 }) => {
-	const fileName = filePath.split(/[\\/]/).pop() ?? filePath;
-
 	return (
 		<div style={toolbarStyle}>
 			<div style={infoStyle}>
-				<span style={{ fontWeight: 500 }} title={filePath}>
-					{fileName}
-				</span>
 				{totalCount > 1 && (
 					<span style={{ opacity: 0.7 }}>
 						{currentIndex + 1}/{totalCount}
@@ -104,26 +89,6 @@ export const ImageViewerToolbar: React.FC<ImageViewerToolbarProps> = ({
 				{rotation !== 0 && <span style={{ opacity: 0.7 }}>{rotation}°</span>}
 			</div>
 			<div style={buttonsStyle}>
-				{/* 导航 */}
-				<button
-					type="button"
-					style={buttonStyle}
-					onClick={onPrev}
-					disabled={!hasPrev}
-					title="上一张 (←)"
-				>
-					◀
-				</button>
-				<button
-					type="button"
-					style={buttonStyle}
-					onClick={onNext}
-					disabled={!hasNext}
-					title="下一张 (→)"
-				>
-					▶
-				</button>
-
 				{/* 缩放 */}
 				<button
 					type="button"

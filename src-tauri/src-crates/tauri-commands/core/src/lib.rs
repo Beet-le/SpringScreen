@@ -1300,6 +1300,14 @@ pub async fn create_image_viewer_window(
         format!("/imageViewer?path={}", encoded_path)
     };
 
+    // 从文件路径中提取文件名
+    let file_name = std::path::Path::new(&file_path)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("图片查看器");
+    
+    let window_title = file_name.to_string();
+
     // 创建窗口 - 标准窗口（有标题栏、可调整大小）
     // 注意：初始 visible(false)，等 WebView2 内容加载完成后再显示，
     // 避免窗口创建后内容渲染前出现黑色窗口闪烁
@@ -1308,7 +1316,7 @@ pub async fn create_image_viewer_window(
         label,
         tauri::WebviewUrl::App(PathBuf::from(url)),
     )
-    .title("SpringScreen-图片查看器")
+    .title(&window_title)
     .inner_size(800.0, 600.0)
     .min_inner_size(400.0, 300.0)
     .resizable(true)

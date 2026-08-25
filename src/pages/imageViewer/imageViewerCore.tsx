@@ -262,6 +262,10 @@ export const ImageViewerCore: React.FC<ImageViewerCoreProps> = ({
 		canvasPixelWRef.current = 0;
 		canvasPixelHRef.current = 0;
 
+		// 更新窗口标题为当前图片文件名
+		const fileName = filePath.split(/[\\/]/).pop() ?? filePath;
+		getCurrentWindow().setTitle(fileName).catch(() => {});
+
 		// 检测是否为动态图片文件（GIF、APNG、WebP 动图）
 		const animatedImageExtensions = ['.gif', '.webp', '.apng'];
 		const fileExtension = filePath.toLowerCase().split('.').pop();
@@ -622,7 +626,17 @@ export const ImageViewerCore: React.FC<ImageViewerCoreProps> = ({
 			}).finally(() => getCurrentWindow().close());
 		});
 		return () => {
-			unlisten.then((fn) => fn());
+			unlisten
+				.then((fn) => {
+					if (typeof fn === "function") {
+						try {
+							fn();
+						} catch {
+							// 窗口关闭时 unlisten 可能失败，忽略
+						}
+					}
+				})
+				.catch(() => {});
 		};
 	}, []);
 
@@ -702,17 +716,98 @@ export const ImageViewerCore: React.FC<ImageViewerCoreProps> = ({
 						Loading...
 					</div>
 				)}
+
+				{/* 左侧导航按钮 */}
+				{hasPrev && (
+					<button
+						type="button"
+						onClick={onPrev}
+						title="上一张 (←)"
+						style={{
+							position: "absolute",
+							left: 12,
+							top: "50%",
+							transform: "translateY(-50%)",
+							width: 44,
+							height: 80,
+							borderRadius: 8,
+							backgroundColor: "rgba(0, 0, 0, 0.15)",
+							border: "none",
+							color: "#fff",
+							fontSize: 22,
+							cursor: "pointer",
+							display: "flex",
+							alignItems: "center",
+							justifyContent: "center",
+							padding: 0,
+							zIndex: 10,
+							opacity: 0.25,
+							transition: "opacity 0.25s ease, background-color 0.25s ease",
+						}}
+						onMouseEnter={(e) => {
+							const btn = e.currentTarget as HTMLButtonElement;
+							btn.style.opacity = "1";
+							btn.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
+						}}
+						onMouseLeave={(e) => {
+							const btn = e.currentTarget as HTMLButtonElement;
+							btn.style.opacity = "0.25";
+							btn.style.backgroundColor = "rgba(0, 0, 0, 0.15)";
+						}}
+					>
+						◀
+					</button>
+				)}
+
+				{/* 右侧导航按钮 */}
+				{hasNext && (
+					<button
+						type="button"
+						onClick={onNext}
+						title="下一张 (→)"
+						style={{
+							position: "absolute",
+							right: 12,
+							top: "50%",
+							transform: "translateY(-50%)",
+							width: 44,
+							height: 80,
+							borderRadius: 8,
+							backgroundColor: "rgba(0, 0, 0, 0.15)",
+							border: "none",
+							color: "#fff",
+							fontSize: 22,
+							cursor: "pointer",
+							display: "flex",
+							alignItems: "center",
+							justifyContent: "center",
+							padding: 0,
+							zIndex: 10,
+							opacity: 0.25,
+							transition: "opacity 0.25s ease, background-color 0.25s ease",
+						}}
+						onMouseEnter={(e) => {
+							const btn = e.currentTarget as HTMLButtonElement;
+							btn.style.opacity = "1";
+							btn.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
+						}}
+						onMouseLeave={(e) => {
+							const btn = e.currentTarget as HTMLButtonElement;
+							btn.style.opacity = "0.25";
+							btn.style.backgroundColor = "rgba(0, 0, 0, 0.15)";
+						}}
+					>
+						▶
+					</button>
+				)}
 			</div>
 			<ImageViewerToolbar
-				filePath={filePath}
 				naturalWidth={imgW}
 				naturalHeight={imgH}
 				zoom={viewTransform.zoom}
 				rotation={rotation}
 				currentIndex={currentIndex}
 				totalCount={totalCount}
-				hasPrev={hasPrev}
-				hasNext={hasNext}
 				fullscreen={fullscreen}
 				onFitToWindow={fitToWindow}
 				onOriginalSize={() => {
@@ -723,8 +818,6 @@ export const ImageViewerCore: React.FC<ImageViewerCoreProps> = ({
 				onRotate={() => setRotation((p) => (p + 90) % 360)}
 				onFlipHorizontal={() => setFlipX((p) => p * -1)}
 				onFlipVertical={() => setFlipY((p) => p * -1)}
-				onPrev={onPrev}
-				onNext={onNext}
 				onToggleFullscreen={toggleFullscreen}
 			/>
 		</div>
