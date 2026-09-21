@@ -6,12 +6,15 @@ interface ImageViewerToolbarProps {
 	currentIndex: number;
 	totalCount: number;
 	fullscreen: boolean;
+	enableOcr: boolean;
+	hasOcrPlugin: boolean;
 	onFitToWindow: () => void;
 	onOriginalSize: () => void;
 	onRotate: () => void;
 	onFlipHorizontal: () => void;
 	onFlipVertical: () => void;
 	onToggleFullscreen: () => void;
+	onToggleOcr: () => void;
 }
 
 const toolbarStyle: React.CSSProperties = {
@@ -65,12 +68,15 @@ export const ImageViewerToolbar: React.FC<ImageViewerToolbarProps> = ({
 	currentIndex,
 	totalCount,
 	fullscreen,
+	enableOcr,
+	hasOcrPlugin,
 	onFitToWindow,
 	onOriginalSize,
 	onRotate,
 	onFlipHorizontal,
 	onFlipVertical,
 	onToggleFullscreen,
+	onToggleOcr,
 }) => {
 	return (
 		<div style={toolbarStyle}>
@@ -89,6 +95,21 @@ export const ImageViewerToolbar: React.FC<ImageViewerToolbarProps> = ({
 				{rotation !== 0 && <span style={{ opacity: 0.7 }}>{rotation}°</span>}
 			</div>
 			<div style={buttonsStyle}>
+				{/* OCR */}
+				{hasOcrPlugin && (
+					<button
+						type="button"
+						style={{
+							...buttonStyle,
+							backgroundColor: enableOcr ? "rgba(24, 144, 255, 0.3)" : undefined,
+						}}
+						onClick={onToggleOcr}
+						title="文字识别 (T)"
+					>
+						文字识别
+					</button>
+				)}
+
 				{/* 缩放 */}
 				<button
 					type="button"

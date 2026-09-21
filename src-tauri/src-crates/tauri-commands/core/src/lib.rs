@@ -187,11 +187,22 @@ pub async fn create_fixed_content_window(
     };
 
     if let Some(window) = hot_load_page_service.pop_page().await {
+        // ============================================================
+        // 透明遮罩防护（对齐录屏模块的修复模式）：
+        // pop_page 已在 Win32 层面恢复窗口可见性，此时 WebView 仍停留在
+        // idle 空白页（透明、无内容）。若直接置顶 + 移到屏幕中心，
+        // 在前端完成渲染（读剪贴板 → 渲染 → showWindow）之前，用户看到的
+        // 是一个拦截所有鼠标点击的透明遮罩层。
+        // 因此先放行鼠标穿透 + 隐藏窗口，由前端渲染完成后恢复交互并显示。
+        // ============================================================
+        let _ = window.set_ignore_cursor_events(true);
+        let _ = window.hide();
+
         window.set_always_on_top(true).unwrap();
         window
             .set_size(tauri::PhysicalSize::new(500.0, 500.0))
             .unwrap();
-        // 将窗口从离屏待机位置 (-32000, -32000) 移到屏幕中心
+        // 将窗口从离屏待机位置 (-32000, -32000) 移到屏幕中心（隐藏状态下的过渡位置）
         let _ = window.center();
 
         match window.emit(
@@ -203,7 +214,13 @@ pub async fn create_fixed_content_window(
         ) {
             Ok(_) => (),
             Err(e) => {
+                // 事件投递失败说明 WebView 已不可用（僵尸窗口），关闭避免留下无效窗口
                 log::error!("[create_fixed_content_window] Failed to emit event: {}", e);
+                let _ = window.close();
+                let _ = hot_load_page_service.create_idle_windows().await;
+                return Err(String::from(
+                    "[create_fixed_content_window] webview unavailable, closed zombie window",
+                ));
             }
         }
 
@@ -216,6 +233,10 @@ pub async fn create_fixed_content_window(
                 );
             }
         }
+
+        // 僵尸窗口兜底：前端渲染完成会调用 showWindow；若长时间未显示
+        // （WebView 冻结/渲染进程被回收），关闭窗口防止泄漏与功能失效
+        spawn_fixed_content_stuck_guard(window.clone());
 
         return Ok(());
     }
@@ -244,15 +265,49 @@ pub async fn create_fixed_content_window(
     .skip_taskbar(true)
     .resizable(false)
     .inner_size(500.0, 500.0)
-    .visible(true)
+    // 内容渲染完成前保持隐藏：避免页面加载期间显示透明空窗口拦截鼠标
+    .visible(false)
     .build()
     .unwrap();
 
-    // 固定内容窗口需要立即可见，直接 show + focus
-    window.show().unwrap();
-    window.set_focus().unwrap();
+    // 前端渲染完成会调用 showWindow 显示窗口；同样挂兜底防止僵尸窗口
+    spawn_fixed_content_stuck_guard(window.clone());
 
     Ok(())
+}
+
+/// 截图固定窗口的僵尸兜底看门狗（单次检查）
+///
+/// 前端在内容渲染完成后会主动 showWindow；若超时仍不可见，
+/// 说明 WebView 已冻结/崩溃（长时间闲置后渲染进程被系统回收的常见场景），
+/// 直接关闭窗口避免透明遮罩残留与窗口泄漏。
+fn spawn_fixed_content_stuck_guard(window: tauri::WebviewWindow) {
+    tauri::async_runtime::spawn(async move {
+        // 前端渲染链路：路由切换 + 读剪贴板 + 图片解码 + setWindowRect + show，
+        // 留足余量避免误杀慢设备上的正常渲染
+        tokio::time::sleep(tokio::time::Duration::from_secs(20)).await;
+
+        match window.is_visible() {
+            Ok(false) => {
+                log::warn!(
+                    "[create_fixed_content_window] window '{}' still hidden after timeout, closing zombie window",
+                    window.label()
+                );
+                let _ = window.close();
+            }
+            Ok(true) => {
+                // 前端已渲染完成并显示窗口，无需处理
+            }
+            Err(e) => {
+                log::warn!(
+                    "[create_fixed_content_window] failed to query visibility of '{}': {}, closing",
+                    window.label(),
+                    e
+                );
+                let _ = window.close();
+            }
+        }
+    });
 }
 
 pub struct FullScreenDrawWindowLabels {

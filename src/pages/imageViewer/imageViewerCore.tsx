@@ -1,7 +1,12 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { message } from "antd";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ImageViewerToolbar } from "./imageViewerToolbar";
+import { OcrResult, type OcrResultActionType } from "@/pages/fixedContent/components/ocrResult";
+import { PLUGIN_ID_RAPID_OCR } from "@/constants/pluginService";
+import { usePluginServiceContext } from "@/contexts/pluginServiceContext";
+import { zIndexs } from "@/utils/zIndex";
 
 interface ImageViewerCoreProps {
 	filePath: string;
@@ -205,6 +210,16 @@ export const ImageViewerCore: React.FC<ImageViewerCoreProps> = ({
 	const [isDragging, setIsDragging] = useState(false);
 	const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 	const [fullscreen, setFullscreen] = useState(false);
+	const [enableOcr, setEnableOcr] = useState(false);
+	const enableOcrRef = useRef(false);
+	const isProcessingOcrRef = useRef(false);
+	const ocrCanvasRef = useRef<HTMLCanvasElement>(null);
+	const ocrResultActionRef = useRef<OcrResultActionType | undefined>(undefined);
+	const { isReady } = usePluginServiceContext();
+
+	useEffect(() => {
+		enableOcrRef.current = enableOcr;
+	}, [enableOcr]);
 
 	// Refs：供 scheduleRender（稳定回调）读取最新值
 	const viewTransformRef = useRef<ViewTransform>(viewTransform);
@@ -253,6 +268,65 @@ export const ImageViewerCore: React.FC<ImageViewerCoreProps> = ({
 			canvas.width = w;
 			canvas.height = h;
 		}
+	}, []);
+
+	// 渲染当前图片到 OCR canvas(与屏幕显示完全一致,包括 zoom、pan、rotation、flip)
+	const renderImageToOcrCanvas = useCallback(async (): Promise<HTMLCanvasElement | null> => {
+		const container = containerRef.current;
+		const img = imgRef.current;
+		if (!container || !img) return null;
+
+		// 获取容器的 CSS 像素尺寸
+		const rect = container.getBoundingClientRect();
+		const containerW = Math.round(rect.width);
+		const containerH = Math.round(rect.height);
+
+		let canvas = ocrCanvasRef.current;
+		if (!canvas) {
+			canvas = document.createElement("canvas");
+			ocrCanvasRef.current = canvas;
+		}
+
+		// 使用 CSS 像素尺寸,与显示一致
+		canvas.width = containerW;
+		canvas.height = containerH;
+
+		const ctx = canvas.getContext("2d");
+		if (!ctx) return null;
+
+		ctx.clearRect(0, 0, containerW, containerH);
+		ctx.fillStyle = "#1e1e1e";
+		ctx.fillRect(0, 0, containerW, containerH);
+
+		// 获取当前变换参数
+		const vt = viewTransformRef.current;
+		const rot = rotationRef.current;
+		const fx = flipXRef.current;
+		const fy = flipYRef.current;
+		const imgW_css = imgWRef.current;
+		const imgH_css = imgHRef.current;
+
+		// 通过 fetch 读取图片数据,避免跨域污染 canvas
+		try {
+			const response = await fetch(img.src);
+			const blob = await response.blob();
+			const bitmap = await createImageBitmap(blob);
+
+			// 与 renderToCanvas 相同的渲染逻辑(使用 CSS 像素)
+			ctx.save();
+			ctx.translate(containerW / 2 + vt.panX, containerH / 2 + vt.panY);
+			ctx.rotate((rot * Math.PI) / 180);
+			ctx.scale(fx * vt.zoom, fy * vt.zoom);
+			ctx.drawImage(bitmap, -imgW_css / 2, -imgH_css / 2, imgW_css, imgH_css);
+			ctx.restore();
+
+			bitmap.close();
+		} catch (err) {
+			console.error("[ImageViewer] Failed to render image to OCR canvas:", err);
+			return null;
+		}
+
+		return canvas;
 	}, []);
 
 	// 图片加载优化：使用 decoding="async" + decode() 将解码移至后台线程，避免阻塞主线程
@@ -386,12 +460,50 @@ export const ImageViewerCore: React.FC<ImageViewerCoreProps> = ({
 	}, [viewTransform, rotation, flipX, flipY, loading, scheduleRender]);
 
 	// resize 时重新计算 canvas 尺寸
+	const resizeDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	useEffect(() => {
 		const handler = () => {
 			canvasPixelWRef.current = 0;
 			canvasPixelHRef.current = 0;
 			updateCanvasSize();
 			if (!loading) scheduleRender();
+
+			// 如果 OCR 已启用,关闭并在 resize 完成后重新识别
+			if (enableOcrRef.current) {
+				// 关闭 OCR:清除 loading、清理状态
+				message.destroy();
+				setEnableOcr(false);
+				ocrResultActionRef.current?.setEnable(false);
+				ocrResultActionRef.current?.clear();
+				isProcessingOcrRef.current = false;
+
+				// debounce 重新识别
+				if (resizeDebounceTimerRef.current) {
+					clearTimeout(resizeDebounceTimerRef.current);
+				}
+				resizeDebounceTimerRef.current = setTimeout(async () => {
+					if (enableOcrRef.current || isProcessingOcrRef.current) {
+						// 用户可能在 debounce 期间又关闭了 OCR,或正在处理中
+						return;
+					}
+					isProcessingOcrRef.current = true;
+					const canvas = await renderImageToOcrCanvas();
+					if (!canvas) {
+						isProcessingOcrRef.current = false;
+						return;
+					}
+					setEnableOcr(true);
+					ocrResultActionRef.current?.setEnable(true);
+					try {
+						await ocrResultActionRef.current?.init({
+							canvas,
+							monitorScaleFactor: 1,
+						});
+					} finally {
+						isProcessingOcrRef.current = false;
+					}
+				}, 300);
+			}
 		};
 		window.addEventListener("resize", handler);
 		return () => window.removeEventListener("resize", handler);
@@ -523,6 +635,46 @@ export const ImageViewerCore: React.FC<ImageViewerCoreProps> = ({
 		invoke("toggle_image_viewer_fullscreen", { enter: next });
 	}, [fullscreen]);
 
+	const toggleOcr = useCallback(async () => {
+		if (!isReady?.(PLUGIN_ID_RAPID_OCR)) {
+			return;
+		}
+
+		if (enableOcr) {
+			// 关闭 OCR:清除 loading、清理状态、隐藏容器
+			message.destroy();
+			setEnableOcr(false);
+			ocrResultActionRef.current?.setEnable(false);
+			ocrResultActionRef.current?.clear();
+			isProcessingOcrRef.current = false;
+		} else {
+			// 开启 OCR:防止重复点击
+			if (isProcessingOcrRef.current) {
+				return;
+			}
+			isProcessingOcrRef.current = true;
+
+			const canvas = await renderImageToOcrCanvas();
+			if (!canvas) {
+				isProcessingOcrRef.current = false;
+				return;
+			}
+
+			setEnableOcr(true);
+			// 同步 enableRef,让 updateOcrTextElements 能正确显示
+			ocrResultActionRef.current?.setEnable(true);
+
+			try {
+				await ocrResultActionRef.current?.init({
+					canvas,
+					monitorScaleFactor: 1,
+				});
+			} finally {
+				isProcessingOcrRef.current = false;
+			}
+		}
+	}, [enableOcr, isReady, renderImageToOcrCanvas]);
+
 	useEffect(() => {
 		const h = (e: KeyboardEvent) => {
 			if (e.key === "F11") {
@@ -542,14 +694,33 @@ export const ImageViewerCore: React.FC<ImageViewerCoreProps> = ({
 				case "r":
 				case "R":
 					setRotation((p) => (p + 90) % 360);
+					// 如果 OCR 已启用，重新执行 OCR
+					if (enableOcr) {
+						setTimeout(() => toggleOcr(), 100);
+					}
 					break;
 				case "f":
 				case "F":
-					setFlipX((p) => p * -1);
+					if (!e.ctrlKey && !e.metaKey) {
+						setFlipX((p) => p * -1);
+						// 如果 OCR 已启用，重新执行 OCR
+						if (enableOcr) {
+							setTimeout(() => toggleOcr(), 100);
+						}
+					}
 					break;
 				case "g":
 				case "G":
 					setFlipY((p) => p * -1);
+					// 如果 OCR 已启用，重新执行 OCR
+					if (enableOcr) {
+						setTimeout(() => toggleOcr(), 100);
+					}
+					break;
+				case "t":
+				case "T":
+					// 切换 OCR
+					toggleOcr();
 					break;
 				case "0": {
 					const reset: ViewTransform = { zoom: 1, panX: 0, panY: 0 };
@@ -605,7 +776,7 @@ export const ImageViewerCore: React.FC<ImageViewerCoreProps> = ({
 		};
 		window.addEventListener("keydown", h);
 		return () => window.removeEventListener("keydown", h);
-	}, [toggleFullscreen, hasPrev, hasNext, onPrev, onNext]);
+	}, [toggleFullscreen, hasPrev, hasNext, onPrev, onNext, enableOcr, toggleOcr]);
 
 	useEffect(() => {
 		const win = getCurrentWindow();
@@ -674,6 +845,7 @@ export const ImageViewerCore: React.FC<ImageViewerCoreProps> = ({
 				flexDirection: "column",
 				overflow: "hidden",
 				backgroundColor: "#1e1e1e",
+				position: "relative", // 为 OCR 图层提供定位上下文
 			}}
 		>
 			<div
@@ -801,6 +973,18 @@ export const ImageViewerCore: React.FC<ImageViewerCoreProps> = ({
 					</button>
 				)}
 			</div>
+			{/* OCR 组件始终渲染,通过 setEnable 控制显示 */}
+			<OcrResult
+				actionRef={ocrResultActionRef}
+				zIndex={zIndexs.Draw_OcrResult}
+				disabled={!enableOcr}
+				enableCopy
+				style={{
+					opacity: enableOcr ? 1 : 0,
+					pointerEvents: enableOcr ? "auto" : "none",
+					transition: "opacity 0.2s ease",
+				}}
+			/>
 			<ImageViewerToolbar
 				naturalWidth={imgW}
 				naturalHeight={imgH}
@@ -809,6 +993,8 @@ export const ImageViewerCore: React.FC<ImageViewerCoreProps> = ({
 				currentIndex={currentIndex}
 				totalCount={totalCount}
 				fullscreen={fullscreen}
+				enableOcr={enableOcr}
+				hasOcrPlugin={!!isReady?.(PLUGIN_ID_RAPID_OCR)}
 				onFitToWindow={fitToWindow}
 				onOriginalSize={() => {
 					const reset: ViewTransform = { zoom: 1, panX: 0, panY: 0 };
@@ -819,6 +1005,7 @@ export const ImageViewerCore: React.FC<ImageViewerCoreProps> = ({
 				onFlipHorizontal={() => setFlipX((p) => p * -1)}
 				onFlipVertical={() => setFlipY((p) => p * -1)}
 				onToggleFullscreen={toggleFullscreen}
+				onToggleOcr={toggleOcr}
 			/>
 		</div>
 	);

@@ -87,6 +87,13 @@ static LAST_OPEN_DRAW_TRIGGER_AT_MS: AtomicU64 = AtomicU64::new(0);
 /// --open-draw 重复触发的防抖窗口期（毫秒）
 const OPEN_DRAW_TRIGGER_DEBOUNCE_MS: u64 = 1200;
 
+/// 开机初期 --open-draw 保护的宽限期（秒）
+///
+/// C# 托盘服务开机自启时会通过 --open-draw 拉起应用（预热），
+/// 系统启动后该宽限期内到达的 --open-draw 视为开机预热请求，忽略截图触发。
+/// 用户主动截图走全局快捷键链路，不受此限制。
+const OPEN_DRAW_BOOT_GRACE_SECS: u64 = 180;
+
 /// 检查当前是否可以触发 open-draw 截图
 /// 使用 CAS（Compare-And-Swap）无锁算法实现线程安全的防抖检查
 fn can_trigger_open_draw_now(now_ms: u64) -> bool {
@@ -111,6 +118,13 @@ fn can_trigger_open_draw_now(now_ms: u64) -> bool {
 /// 该参数由 C# 托盘服务或外部调用传入，用于触发一次截图
 fn has_open_draw_arg(args: &[String]) -> bool {
     args.iter().any(|arg| arg == "--open-draw")
+}
+
+/// 检测命令行参数中是否包含 `--auto_start`
+/// 该参数由 tauri-plugin-autostart（注册表 Run / LaunchAgent）
+/// 或 Windows 任务计划程序自启动任务传入
+fn has_auto_start_arg(args: &[String]) -> bool {
+    args.iter().any(|arg| arg == "--auto_start")
 }
 
 /// 检查命令行参数中是否包含图片文件路径
@@ -232,10 +246,28 @@ fn pre_acquire_single_instance_mutex_if_open_draw() {
 /// 打开 draw 页面并执行一次截图（--open-draw 触发的主流程）
 ///
 /// 流程：
-/// 1. 防抖检查：拒绝 1200ms 内的重复触发
-/// 2. 原子标志检查：防止并发重复执行
-/// 3. 异步调用 trigger_screenshot_core 执行实际截图
+/// 1. 开机自启保护：系统启动初期（如托盘服务开机拉起应用）忽略 --open-draw
+/// 2. 防抖检查：拒绝 1200ms 内的重复触发
+/// 3. 原子标志检查：防止并发重复执行
+/// 4. 异步调用 trigger_screenshot_core 执行实际截图
 fn schedule_open_draw(app: tauri::AppHandle) {
+    // ============================================================
+    // 开机自启保护：C# 托盘服务在开机自启时会通过 --open-draw 拉起应用，
+    // 系统启动初期到达的 --open-draw 属于"开机预热"而非用户主动截图，
+    // 若正常触发会表现为"开机后自动弹出截图面板"，需在宽限期内忽略。
+    // 用户主动截图走全局快捷键链路，不经过本函数，不受影响。
+    // ============================================================
+    if let Some(uptime_secs) = snow_shot_app_os::utils::system_uptime_secs() {
+        if uptime_secs < OPEN_DRAW_BOOT_GRACE_SECS {
+            log::info!(
+                "[schedule_open_draw] skipped: system booted {}s ago, within {}s boot grace window",
+                uptime_secs,
+                OPEN_DRAW_BOOT_GRACE_SECS
+            );
+            return;
+        }
+    }
+
     let now_ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
@@ -531,6 +563,11 @@ pub fn run() {
                         }
                     }
                 });
+            } else if has_auto_start_arg(&argv) {
+                // 自启动的重复实例（任务计划 + 注册表 Run 双入口等场景）：
+                // 静默忽略，不激活主窗口，避免开机后主界面被意外弹出
+                debug_log(app, "[single_instance] branch: --auto_start duplicate, ignore silently");
+                log::info!("[single_instance] branch: --auto_start duplicate, ignore silently");
             } else {
                 // 普通的多开请求：激活并显示主窗口
                 debug_log(app, "[single_instance] branch: activate main window");

@@ -64,6 +64,16 @@ pub fn get_focused_window() -> HWND {
     unsafe { GetForegroundWindow() }
 }
 
+/// 获取系统启动以来的秒数（用于识别开机自启场景）
+///
+/// 基于 GetTickCount64：返回系统启动后经过的毫秒数，
+/// 不受用户调整系统时间影响，适合判断"应用是否在开机初期被拉起"
+pub fn system_uptime_secs() -> Option<u64> {
+    use windows::Win32::System::SystemInformation::GetTickCount64;
+
+    Some(unsafe { GetTickCount64() } / 1000)
+}
+
 // ============================================================
 // Windows 任务计划程序（Task Scheduler）自启动管理
 //

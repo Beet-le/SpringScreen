@@ -280,6 +280,11 @@ export const FixedContentPage: React.FC = () => {
 			}
 
 			if (width > 0 && height > 0) {
+				// 恢复鼠标事件捕获：Rust 侧创建窗口时设置了 ignore_cursor_events(true)
+				// 作为透明遮罩防护（渲染完成前窗口不可见也不拦截点击），
+				// 内容已渲染完成，必须恢复交互能力，否则固定内容无法拖动/缩放
+				await appWindow.setIgnoreCursorEvents(false);
+
 				const windowWidth = Math.floor(width * initialScale);
 				const windowHeight = Math.floor(height * initialScale);
 

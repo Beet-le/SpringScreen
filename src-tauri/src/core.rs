@@ -320,6 +320,16 @@ pub async fn auto_start_enable(app: tauri::AppHandle) -> Result<(), String> {
 
         // 非管理员：使用普通注册表自启动方式
         if !is_admin {
+            // 尝试清理可能残留的管理员任务计划自启动任务，避免双入口同时启动
+            // 非管理员删除任务计划可能因权限不足失败，静默忽略
+            match snow_shot_tauri_commands_core::delete_admin_auto_start_task().await {
+                Ok(_) => log::info!("[auto_start_enable] cleaned up leftover admin auto start task"),
+                Err(e) => log::debug!(
+                    "[auto_start_enable] unable to remove admin auto start task (non-admin?): {}",
+                    e
+                ),
+            }
+
             match autostart_manager.enable() {
                 Ok(_) => (),
                 Err(e) => {
@@ -389,18 +399,22 @@ pub async fn auto_start_disable(app: tauri::AppHandle) -> Result<(), String> {
             }
         };
 
-        if !is_admin {
-            return Ok(());
-        }
-
-        // 删除管理员自启动任务
+        // 无论是否管理员都尝试删除任务计划任务：
+        // 非管理员运行时也尽量清理（可能因权限不足失败，静默忽略），
+        // 避免任务计划残留导致开机双入口同时启动
         match snow_shot_tauri_commands_core::delete_admin_auto_start_task().await {
-            Ok(_) => (),
+            Ok(_) => log::info!("[auto_start_disable] admin auto start task removed"),
             Err(e) => {
-                return Err(format!(
-                    "[auto_start_disable] Failed to delete admin auto start task: {}",
-                    e,
-                ));
+                if is_admin {
+                    return Err(format!(
+                        "[auto_start_disable] Failed to delete admin auto start task: {}",
+                        e,
+                    ));
+                }
+                log::debug!(
+                    "[auto_start_disable] unable to remove admin auto start task (non-admin?): {}",
+                    e
+                );
             }
         }
 
