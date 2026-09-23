@@ -1,0 +1,1142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小秋截图 - 截你所想，录你所见</title>
+    <meta name="description" content="小秋截图是小秋桌面生态中的轻量级截图、录屏、OCR文字识别工具，为低配置Windows设备深度优化，让您的工作效率翻倍。">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #00AC70;
+            --primary-light: #33c48a;
+            --primary-lighter: #e6f7f1;
+            --primary-soft: #f0faf5;
+            --primary-muted: #b3e6d3;
+            --ink: #1a1a1a;
+            --ink-secondary: #666666;
+            --ink-muted: #999999;
+            --canvas: #FFFFFF;
+            --canvas-alt: #F7F7F7;
+            --card-bg: #FFFFFF;
+            --shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+            --shadow-hover: 0 8px 32px rgba(0, 0, 0, 0.1);
+            --radius: 18px;
+            --radius-sm: 12px;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            color: var(--ink);
+            background: var(--canvas);
+            font-size: 17px;
+            font-weight: 400;
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ===== GLOBAL NAV ===== */
+        .global-nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 10000;
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: saturate(180%) blur(20px);
+            -webkit-backdrop-filter: saturate(180%) blur(20px);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+            height: 52px;
+        }
+
+        .global-nav-inner {
+            max-width: 1024px;
+            margin: 0 auto;
+            padding: 0 22px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .global-nav-logo {
+            color: var(--primary);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 700;
+            font-size: 15px;
+        }
+
+        .logo-mark {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary) 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 14px;
+            box-shadow: 0 2px 8px rgba(0, 172, 112, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .logo-mark::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.25) 0%, transparent 60%);
+            pointer-events: none;
+        }
+
+        .logo-text {
+            font-size: 16px;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            background: linear-gradient(135deg, var(--primary) 0%, #008f5c 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .global-nav-links {
+            display: flex;
+            gap: 28px;
+            align-items: center;
+        }
+
+        .global-nav-link {
+            color: var(--ink-secondary);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .global-nav-link:hover {
+            color: var(--primary);
+        }
+
+        .global-nav-link-badge {
+            background: var(--primary-soft);
+            color: var(--primary);
+            padding: 5px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .global-nav-link-badge:hover {
+            background: var(--primary);
+            color: #fff;
+        }
+
+        /* ===== SUB NAV ===== */
+        .sub-nav {
+            position: sticky;
+            top: 52px;
+            z-index: 9999;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: saturate(180%) blur(20px);
+            -webkit-backdrop-filter: saturate(180%) blur(20px);
+            height: 52px;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        }
+
+        .sub-nav-inner {
+            max-width: 1024px;
+            margin: 0 auto;
+            padding: 0 22px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .sub-nav-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--ink);
+        }
+
+        .sub-nav-actions {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .sub-nav-link {
+            color: var(--ink-secondary);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .sub-nav-link:hover {
+            color: var(--primary);
+        }
+
+        /* ===== BUTTONS ===== */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .btn:active {
+            transform: scale(0.97);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            color: #ffffff;
+            border-radius: 50px;
+            padding: 12px 28px;
+            box-shadow: 0 4px 16px rgba(0, 172, 112, 0.25);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0, 172, 112, 0.35);
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--primary);
+            border-radius: 50px;
+            padding: 12px 28px;
+            border: 1.5px solid var(--primary-lighter);
+        }
+
+        .btn-ghost:hover {
+            background: var(--primary-soft);
+            border-color: var(--primary-light);
+        }
+
+        .btn-text {
+            background: transparent;
+            color: var(--primary);
+            padding: 0;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .btn-text:hover {
+            text-decoration: underline;
+        }
+
+        /* ===== TYPOGRAPHY ===== */
+        .typo-hero {
+            font-size: 52px;
+            font-weight: 800;
+            line-height: 1.12;
+            letter-spacing: -0.02em;
+        }
+
+        .typo-display {
+            font-size: 38px;
+            font-weight: 700;
+            line-height: 1.15;
+        }
+
+        .typo-headline {
+            font-size: 20px;
+            font-weight: 400;
+            line-height: 1.4;
+            color: var(--ink-secondary);
+        }
+
+        .typo-tagline {
+            font-size: 20px;
+            font-weight: 700;
+            line-height: 1.3;
+        }
+
+        .typo-body {
+            font-size: 17px;
+            font-weight: 400;
+            line-height: 1.6;
+        }
+
+        .typo-caption {
+            font-size: 14px;
+            font-weight: 400;
+            line-height: 1.5;
+        }
+
+        /* ===== PRODUCT TILES ===== */
+        .tile {
+            padding: 90px 0;
+            text-align: center;
+        }
+
+        .tile-light {
+            background: var(--canvas);
+            color: var(--ink);
+        }
+
+        .tile-parchment {
+            background: linear-gradient(180deg, var(--canvas) 0%, var(--canvas-alt) 100%);
+            color: var(--ink);
+        }
+
+        .tile-dark {
+            background: linear-gradient(135deg, #1a1a1a 0%, #333333 100%);
+            color: #fff;
+        }
+
+        .tile-dark-alt {
+            background: linear-gradient(135deg, #333333 0%, #1a1a1a 100%);
+            color: #fff;
+        }
+
+        .tile-inner {
+            max-width: 980px;
+            margin: 0 auto;
+            padding: 0 22px;
+        }
+
+        .tile-headline {
+            margin-bottom: 10px;
+        }
+
+        .tile-subline {
+            margin-bottom: 28px;
+        }
+
+        .tile-ctas {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            margin-bottom: 52px;
+        }
+
+        .tile-image {
+            max-width: 100%;
+            margin: 0 auto;
+            display: block;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-hover);
+        }
+
+        /* ===== SECTION GRIDS ===== */
+        .section-grid {
+            max-width: 1024px;
+            margin: 0 auto;
+            padding: 80px 22px;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+
+        /* ===== UTILITY CARDS ===== */
+        .card {
+            background: var(--card-bg);
+            border: 1px solid rgba(0, 0, 0, 0.06);
+            border-radius: var(--radius);
+            padding: 32px;
+            text-align: left;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-hover);
+            border-color: rgba(0, 172, 112, 0.2);
+        }
+
+        .card-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--primary-soft), var(--primary-muted));
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            margin-bottom: 16px;
+        }
+
+        .card-title {
+            font-size: 19px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .card-desc {
+            font-size: 15px;
+            color: var(--ink-secondary);
+            line-height: 1.6;
+            margin-bottom: 14px;
+        }
+
+        /* ===== APP CENTER CTA ===== */
+        .app-center-cta {
+            background: linear-gradient(135deg, var(--canvas-alt), #ffffff);
+            border: 2px dashed var(--primary-lighter);
+            border-radius: var(--radius);
+            padding: 48px 32px;
+            text-align: center;
+            max-width: 640px;
+            margin: 0 auto;
+        }
+
+        .app-center-cta .icon-circle {
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, var(--primary-light), var(--primary));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            color: #fff;
+            font-size: 26px;
+        }
+
+        .app-center-cta h3 {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 10px;
+            color: var(--ink);
+        }
+
+        .app-center-cta p {
+            font-size: 16px;
+            color: var(--ink-secondary);
+            margin-bottom: 24px;
+        }
+
+        /* ===== FOOTER ===== */
+        .footer {
+            background: linear-gradient(180deg, var(--canvas-alt) 0%, #ffffff 100%);
+            padding: 48px 0 24px;
+            border-top: 1px solid rgba(0, 0, 0, 0.06);
+        }
+
+        .footer-inner {
+            max-width: 1024px;
+            margin: 0 auto;
+            padding: 0 22px;
+        }
+
+        .footer-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            padding-bottom: 32px;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+        }
+
+        .footer-col-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--ink);
+            margin-bottom: 12px;
+        }
+
+        .footer-link {
+            display: block;
+            color: var(--ink-muted);
+            text-decoration: none;
+            font-size: 13px;
+            padding: 4px 0;
+            transition: color 0.2s;
+        }
+
+        .footer-link:hover {
+            color: var(--primary);
+        }
+
+        .footer-legal {
+            padding-top: 16px;
+        }
+
+        .footer-legal-text {
+            font-size: 12px;
+            color: var(--ink-muted);
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 1068px) {
+            .typo-hero {
+                font-size: 40px;
+            }
+
+            .grid-3 {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 833px) {
+            .global-nav-links {
+                display: none;
+            }
+
+            .typo-hero {
+                font-size: 34px;
+            }
+
+            .typo-display {
+                font-size: 28px;
+            }
+
+            .tile {
+                padding: 60px 0;
+            }
+
+            .tile-ctas {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .grid-3,
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+
+            .footer-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 480px) {
+            .typo-hero {
+                font-size: 28px;
+            }
+
+            .typo-display {
+                font-size: 24px;
+            }
+
+            .typo-headline {
+                font-size: 18px;
+            }
+
+            .sub-nav-title {
+                font-size: 16px;
+            }
+        }
+
+        /* ===== HERO SECTION ===== */
+        .hero {
+            position: relative;
+            background: linear-gradient(180deg, #ffffff 0%, #f7f7f7 100%);
+            padding: 120px 0 0;
+            overflow: hidden;
+            text-align: center;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -30%;
+            right: -10%;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(0, 172, 112, 0.06) 0%, transparent 65%);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .hero::after {
+            content: '';
+            position: absolute;
+            bottom: -20%;
+            left: -10%;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(0, 0, 0, 0.02) 0%, transparent 65%);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .hero-inner {
+            position: relative;
+            z-index: 2;
+            max-width: 980px;
+            margin: 0 auto;
+            padding: 0 22px;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(0, 172, 112, 0.08);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 172, 112, 0.15);
+            color: var(--primary);
+            padding: 8px 18px;
+            border-radius: 50px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 28px;
+            letter-spacing: 0.02em;
+        }
+
+        .hero-title {
+            font-size: 56px;
+            font-weight: 800;
+            line-height: 1.1;
+            color: var(--ink);
+            margin-bottom: 18px;
+            letter-spacing: -0.03em;
+        }
+
+        .hero-title span {
+            background: linear-gradient(135deg, var(--primary) 0%, #008f5c 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero-subtitle {
+            font-size: 20px;
+            font-weight: 400;
+            color: var(--ink-secondary);
+            margin-bottom: 40px;
+            line-height: 1.5;
+            max-width: 520px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .hero-ctas {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            margin-bottom: 72px;
+        }
+
+        .hero-ctas .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            color: #fff;
+            box-shadow: 0 4px 20px rgba(0, 172, 112, 0.25);
+        }
+
+        .hero-ctas .btn-primary:hover {
+            background: linear-gradient(135deg, #009a65, var(--primary-light));
+            transform: translateY(-2px);
+            box-shadow: 0 8px 28px rgba(0, 172, 112, 0.35);
+        }
+
+        .hero-ctas .btn-ghost {
+            border-color: rgba(0, 0, 0, 0.12);
+            color: var(--ink-secondary);
+        }
+
+        .hero-ctas .btn-ghost:hover {
+            background: rgba(0, 0, 0, 0.03);
+            border-color: rgba(0, 0, 0, 0.2);
+            color: var(--ink);
+        }
+
+        .hero-mockup {
+            position: relative;
+            max-width: 880px;
+            margin: 0 auto;
+            padding-bottom: 80px;
+        }
+
+        .hero-mockup-frame {
+            background: linear-gradient(180deg, #2d2d2d 0%, #1e1e1e 100%);
+            border-radius: 14px 14px 0 0;
+            padding: 14px 14px 0;
+            box-shadow: 0 -4px 40px rgba(0, 0, 0, 0.08), 0 24px 80px rgba(0, 0, 0, 0.18);
+            position: relative;
+        }
+
+        .hero-mockup-dots {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+            padding-left: 6px;
+        }
+
+        .hero-mockup-dots span {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: block;
+        }
+
+        .hero-mockup-dots span:nth-child(1) { background: #ff5f57; }
+        .hero-mockup-dots span:nth-child(2) { background: #ffbd2e; }
+        .hero-mockup-dots span:nth-child(3) { background: #28c840; }
+
+        .hero-mockup img {
+            width: 100%;
+            display: block;
+            border-radius: 6px 6px 0 0;
+            background: #1a1a1a;
+            min-height: 200px;
+            object-fit: cover;
+        }
+
+        @media (max-width: 833px) {
+            .hero { padding: 100px 0 0; }
+            .hero-title { font-size: 38px; }
+            .hero-subtitle { font-size: 17px; }
+            .hero-mockup { padding-bottom: 48px; }
+        }
+
+        /* ===== GUIDE SECTION ===== */
+        .guide-layout {
+            display: flex;
+            gap: 48px;
+            text-align: left;
+            margin-top: 48px;
+        }
+
+        .guide-toc {
+            width: 180px;
+            flex-shrink: 0;
+            position: sticky;
+            top: 120px;
+            align-self: flex-start;
+        }
+
+        .guide-toc-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--ink);
+            margin-bottom: 14px;
+            letter-spacing: -0.01em;
+        }
+
+        .guide-toc ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .guide-toc li {
+            margin-bottom: 2px;
+        }
+
+        .guide-toc a {
+            color: var(--ink-muted);
+            text-decoration: none;
+            font-size: 13px;
+            display: block;
+            padding: 4px 0;
+            transition: color 0.2s;
+            border-left: 2px solid transparent;
+            padding-left: 10px;
+            margin-left: -12px;
+        }
+
+        .guide-toc a:hover {
+            color: var(--primary);
+        }
+
+        .guide-toc a.active {
+            color: var(--primary);
+            border-left-color: var(--primary);
+            font-weight: 600;
+        }
+
+        .guide-toc .toc-h3 {
+            padding-left: 22px;
+        }
+
+        .guide-content {
+            flex: 1;
+            min-width: 0;
+            max-width: 720px;
+        }
+
+        .guide-content h2 {
+            font-size: 26px;
+            font-weight: 700;
+            margin-top: 48px;
+            margin-bottom: 16px;
+            padding-top: 24px;
+            border-top: 1px solid rgba(0, 0, 0, 0.08);
+            color: var(--ink);
+        }
+
+        .guide-content h2:first-of-type {
+            margin-top: 0;
+            padding-top: 0;
+            border-top: none;
+        }
+
+        .guide-content h3 {
+            font-size: 20px;
+            font-weight: 700;
+            margin-top: 28px;
+            margin-bottom: 12px;
+            color: var(--ink);
+        }
+
+        .guide-content h4 {
+            font-size: 16px;
+            font-weight: 700;
+            margin-top: 18px;
+            margin-bottom: 8px;
+            color: var(--ink-secondary);
+        }
+
+        .guide-content p {
+            font-size: 15px;
+            color: var(--ink-secondary);
+            line-height: 1.8;
+            margin-bottom: 12px;
+        }
+
+        .guide-content ul,
+        .guide-content ol {
+            margin-left: 20px;
+            margin-bottom: 16px;
+        }
+
+        .guide-content li {
+            font-size: 15px;
+            color: var(--ink-secondary);
+            line-height: 1.8;
+            margin-bottom: 6px;
+        }
+
+        .guide-content strong {
+            color: var(--ink);
+            font-weight: 600;
+        }
+
+        .guide-content a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .guide-content a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 833px) {
+            .guide-layout {
+                flex-direction: column;
+                gap: 24px;
+            }
+
+            .guide-toc {
+                width: 100%;
+                position: static;
+                align-self: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Global Navigation -->
+    <!-- <nav class="global-nav">
+        <div class="global-nav-inner">
+            <a href="#" class="global-nav-logo">
+                <div class="logo-mark"><i class="fas fa-camera-retro"></i></div>
+                <span class="logo-text">SpringScreenShot</span>
+            </a>
+            <div class="global-nav-links">
+                <a href="Index.html" class="global-nav-link-badge"><i class="fas fa-leaf" style="margin-right:4px;"></i>SpringScreenShot</a>
+            </div>
+        </div>
+    </nav> -->
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-inner">
+            <div class="hero-badge">
+                <i class="fas fa-bolt" style="color: #fff176;"></i> 小秋桌面生态组件
+            </div>
+            <h1 class="hero-title">截你所想，<span>录你所见</span></h1>
+            <p class="hero-subtitle">轻量、高效、专业的桌面截图工具，为低配置设备深度优化</p>
+            <div class="hero-ctas">
+                <a href="#guide" class="btn btn-primary"><i class="fas fa-compass"></i> 探索功能</a>
+                <a href="Index.html" class="btn btn-ghost"><i class="fas fa-leaf"></i> 前往小秋桌面</a>
+            </div>
+            <div class="hero-mockup">
+                <div class="hero-mockup-frame">
+                    <div class="hero-mockup-dots">
+                        <span></span><span></span><span></span>
+                    </div>
+                    <img src="img/小秋截图主界面.png" alt="小秋截图主界面">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- User Guide -->
+    <section class="tile tile-light" id="guide">
+        <div class="tile-inner" style="max-width: 1100px;">
+            <h2 class="tile-headline typo-display">使用指南</h2>
+            <p class="tile-subline typo-headline" style="color: var(--ink-muted);">快速上手 SpringScreenShot</p>
+            <div class="guide-layout">
+                <nav class="guide-toc">
+                    <div class="guide-toc-title">页面导航</div>
+                    <ul>
+                        <li><a href="#guide-intro" class="toc-h2">安装并使用</a></li>
+                        <li><a href="#guide-capture" class="toc-h2">基础截图操作</a></li>
+                        <li><a href="#guide-start" class="toc-h3">开始截图</a></li>
+                        <li><a href="#guide-modes" class="toc-h3">截图模式</a></li>
+                        <li><a href="#guide-detect" class="toc-h3">智能窗口识别</a></li>
+                        <li><a href="#guide-annotate" class="toc-h2">标注编辑功能</a></li>
+                        <li><a href="#guide-tools" class="toc-h3">标注工具栏</a></li>
+                        <li><a href="#guide-tips" class="toc-h3">编辑技巧</a></li>
+                        <li><a href="#guide-ocr" class="toc-h2">文字识别</a></li>
+                        <li><a href="#guide-record" class="toc-h2">视频录制</a></li>
+                        <li><a href="#guide-pin" class="toc-h2">固定到屏幕</a></li>
+                        <li><a href="#guide-save" class="toc-h2">保存和分享</a></li>
+                        <li><a href="#guide-clipboard" class="toc-h3">复制到剪贴板</a></li>
+                        <li><a href="#guide-file" class="toc-h3">保存为文件</a></li>
+
+                    </ul>
+                </nav>
+                <div class="guide-content">
+                    <h2 id="guide-intro">安装并使用</h2>
+                    <p>在 <strong>小秋桌面</strong>应用中心点击安装即可。安装完成后，任务栏会出现截图图标，同时默认开启全局快捷键<br><strong style="font-size:24px;color:var(--primary);letter-spacing:1px;">Alt + A   </strong>随时唤起截图功能。</p>
+                    <img src="img/安装并使用.png" alt="安装并使用" style="max-width:100%;border-radius:12px;margin:20px 0;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
+                    <p>以上启动方式均可前往设置中自由配置，打造属于你的高效截图体验。</p>
+
+                    <h2 id="guide-capture">基础截图操作</h2>
+
+                    <h3 id="guide-start">开始截图</h3>
+                    <p>SpringScreenShot 支持多种方式启动截图：</p>
+                    <ul>
+                        <li><strong>快捷键截图</strong>：在应用中心配置并使用全局快捷键（推荐方式），可在任何场景下快速唤起</li>
+                        <li><strong>任务栏按钮截图</strong>：点击截图图标，选择相应的截图选项</li>
+                    </ul>
+
+                    <h3 id="guide-modes">截图模式</h3>
+                    <p>SpringScreenShot 提供多种截图模式，满足不同的使用需求：</p>
+                    <ul>
+                        <li><strong>区域截图</strong>：自由框选屏幕任意区域进行截图，支持智能窗口识别</li>
+                        <li><strong>窗口截图</strong>：自动识别并捕获当前窗口的完整内容</li>
+                        <li><strong>全屏截图</strong>：一键截取整个屏幕画面</li>
+                        <li><strong>滚动截图</strong>：通过手动或自动滚动截取窗口中的滚动内容</li>
+                        <li><strong>焦点窗口截图</strong>：快速截取当前活动窗口</li>
+                    </ul>
+
+                    <h3 id="guide-detect">智能窗口识别</h3>
+                    <p>在区域截图模式下，SpringScreenShot 能够自动识别屏幕上的窗口和元素边界：</p>
+                    <ul>
+                        <li>移动鼠标时，会自动高亮当前鼠标悬停的窗口或元素</li>
+                        <li>点击即可快速选中该区域，无需手动调整边界</li>
+                        <li>按住鼠标拖动可以自由框选任意大小的区域</li>
+                    </ul>
+
+                    <h2 id="guide-annotate">标注编辑功能</h2>
+                    <p>完成截图区域选择后，会进入标注编辑模式。SpringScreenShot 提供了丰富的标注工具，帮助您快速为截图添加说明和标记。</p>
+                    <img src="img/标记.png" alt="标注编辑" style="max-width:100%;border-radius:12px;margin:20px 0;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
+
+                    <h3 id="guide-tools">标注工具栏</h3>
+                    <p>编辑界面提供了以下标注工具：</p>
+                    <ul>
+                        <li><strong>矩形/圆形</strong>：绘制矩形或圆形框，突出重点区域</li>
+                        <li><strong>箭头/直线</strong>：添加箭头或直线，指示关键信息</li>
+                        <li><strong>文字标注</strong>：在截图上添加文字说明</li>
+                        <li><strong>画笔</strong>：自由绘制，标记任意形状</li>
+                        <li><strong>马赛克</strong>：对敏感信息进行模糊处理</li>
+                        <li><strong>序号标记</strong>：自动添加序号，适合制作教程步骤</li>
+                        <li><strong>撤销/重做</strong>：快速回退或恢复编辑操作</li>
+                    </ul>
+
+                    <h3 id="guide-tips">编辑技巧</h3>
+                    <ul>
+                        <li><strong>颜色选择</strong>：每个标注工具都支持自定义颜色，满足不同的标注需求</li>
+                        <li><strong>粗细调节</strong>：可以调整线条的粗细和文字的大小</li>
+                        <li><strong>移动和调整</strong>：已添加的标注可以随时选中、移动或调整大小</li>
+                        <li><strong>删除标注</strong>：选中标注后按 Delete 键或使用橡皮擦工具即可移除</li>
+                    </ul>
+
+                    <h2 id="guide-ocr">文字识别</h2>
+                    <p>通过文字识别按钮，一键提取截取内容中的文字，可点击复制按钮复制全部，也可以选择想要的文字 <strong style="color:var(--primary);">Ctrl+C</strong> 进行选择性的复制。</p>
+                    <img src="img/文字识别.png" alt="文字识别" style="max-width:100%;border-radius:12px;margin:20px 0;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
+
+                    <h2 id="guide-record">视频录制</h2>
+                    <p>框选需要录制的屏幕区域，点击录制按钮即可开始高清录屏。录制完成后支持将视频一键转换为 GIF 动图，满足不同场景下的分享需求。</p>
+                    <img src="img/视频录制.png" alt="视频录制" style="max-width:100%;border-radius:12px;margin:20px 0;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
+
+                    <h2 id="guide-pin">固定到屏幕</h2>
+                    <p>截图时点击<strong>固定到屏幕</strong>工具，将截图作为悬浮窗固定在屏幕上：</p>
+                    <ul>
+                        <li>适合对照参考、比对差异等场景，按住 <strong style="color:var(--primary);">Ctrl</strong> 滚动滚轮即可调节透明度</li>
+                        <li>键盘方向键自由移动，鼠标滚轮调整大小，顺手高效</li>
+                        <li>支持同时固定多张截图，自由排列布局</li>
+                        <li>右键悬浮窗可快速关闭或展开更多操作</li>
+                    </ul>
+
+                    <h2 id="guide-save">保存和分享</h2>
+                    <p>完成截图编辑后，SpringScreenShot 提供了多种保存和分享方式：</p>
+
+                    <h3 id="guide-clipboard">复制到剪贴板</h3>
+                    <p>点击<strong>复制</strong>按钮或使用快捷键 <strong style="color:var(--primary);">Ctrl+C</strong>，将截图复制到系统剪贴板，可直接粘贴到：</p>
+                    <ul>
+                        <li>聊天工具（微信、QQ、钉钉等）</li>
+                        <li>文档编辑器（Word、Excel、PowerPoint 等）</li>
+                        <li>图片编辑软件</li>
+                        <li>网页输入框</li>
+                    </ul>
+
+                    <h3 id="guide-file">保存为文件</h3>
+                    <p>点击<strong>保存</strong>按钮，将截图保存为图片文件：</p>
+                    <ul>
+                        <li>支持自定义保存路径</li>
+                        <li>支持多种图片格式（PNG、JPG、WEBP、AVIF、JXL 等）</li>
+                        <li>可在设置中配置默认保存位置和文件命名规则</li>
+                    </ul>               
+                </div>
+            </div>
+        </div>
+    </section>
+    <section class="section-grid" id="usecases" style="background: linear-gradient(180deg, #ffffff 0%, var(--canvas-alt) 100%);">
+        <div style="text-align: center; margin-bottom: 48px;">
+            <h2 class="typo-display" style="margin-bottom: 12px;">适合所有人</h2>
+            <p class="typo-headline">无论您从事什么行业</p>
+        </div>
+        <div class="grid-3">
+            <div class="card" style="text-align: center;">
+                <div class="card-icon">💻</div>
+                <h3 class="card-title">开发者</h3>
+                <p class="card-desc">快速捕捉错误信息、API文档和代码片段</p>
+            </div>
+            <div class="card" style="text-align: center;">
+                <div class="card-icon">🎨</div>
+                <h3 class="card-title">设计师</h3>
+                <p class="card-desc">截取设计参考、标注UI元素</p>
+            </div>
+            <div class="card" style="text-align: center;">
+                <div class="card-icon">📊</div>
+                <h3 class="card-title">产品经理</h3>
+                <p class="card-desc">记录用户流程、截取反馈线程</p>
+            </div>
+            <div class="card" style="text-align: center;">
+                <div class="card-icon">🎓</div>
+                <h3 class="card-title">教育者</h3>
+                <p class="card-desc">创建带标注的教程和演示</p>
+            </div>
+            <div class="card" style="text-align: center;">
+                <div class="card-icon">✍️</div>
+                <h3 class="card-title">作家</h3>
+                <p class="card-desc">使用OCR提取引用和参考资料</p>
+            </div>
+            <div class="card" style="text-align: center;">
+                <div class="card-icon">🎧</div>
+                <h3 class="card-title">客服</h3>
+                <p class="card-desc">逐步记录问题，录屏标注指导</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Testimonials - Light -->
+    <section class="tile tile-light">
+        <div class="tile-inner">
+            <h2 class="tile-headline typo-display">用户怎么说</h2>
+            <p class="tile-subline typo-headline" style="color: var(--ink-muted);">来自真实用户的反馈</p>
+            <div class="grid-3" style="text-align: left; margin-top: 48px;">
+                <div class="card">
+                    <p class="typo-body" style="color: var(--ink-secondary); margin-bottom: 16px;">"能截长图、录GIF、还能OCR，这可能是最强的免费截图工具。而且在我的老电脑上运行得飞快！"</p>
+                    <p class="typo-caption" style="color: var(--ink); font-weight: 600;">— 资深用户</p>
+                </div>
+                <div class="card">
+                    <p class="typo-body" style="color: var(--ink-secondary); margin-bottom: 16px;">"截图、贴图、标注、文字识别，都是办公时非常需要的功能。一个软件搞定所有需求，强烈推荐！"</p>
+                    <p class="typo-caption" style="color: var(--ink); font-weight: 600;">— 办公软件评测</p>
+                </div>
+                <div class="card">
+                    <p class="typo-body" style="color: var(--ink-secondary); margin-bottom: 16px;">"梦想中的截图工具，终于有人做出来了！低配置电脑的福音，内存占用真的很低。"</p>
+                    <p class="typo-caption" style="color: var(--ink); font-weight: 600;">— 技术博主</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- App Center CTA - Parchment (Replacing Download) -->
+    <section class="tile tile-parchment">
+        <div class="tile-inner">
+            <h2 class="tile-headline typo-display">开始使用小秋截图</h2>
+            <p class="tile-subline typo-headline" style="color: var(--ink-muted);">小秋截图是小秋桌面的内置功能组件</p>
+            <div style="margin-top: 40px;">
+                <div class="app-center-cta">
+                    <div class="icon-circle"><i class="fas fa-download"></i></div>
+                    <h3>前往小秋桌面应用中心</h3>
+                    <p>小秋截图已集成在小秋桌面中，请前往应用中心下载体验</p>
+                    <a href="Index.html#download" class="btn btn-primary"><i class="fas fa-leaf"></i> 前往小秋桌面下载</a>
+                </div>
+            </div>
+            <p class="typo-caption" style="color: var(--ink-muted); margin-top: 24px;">
+                支持 Windows 和 macOS 系统 &nbsp;|&nbsp; 命令行启动: SpringScreen.exe --open-draw
+            </p>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-inner">
+            <div class="footer-grid">
+                <div>
+                    <div class="footer-col-title">产品</div>
+                    <a href="#features" class="footer-link">功能特性</a>
+                    <a href="#" class="footer-link">更新日志</a>
+                    <a href="Index.html" class="footer-link">小秋桌面</a>
+                </div>
+                <div>
+                    <div class="footer-col-title">资源</div>              
+                    <a href="#" class="footer-link">常见问题</a>
+                    <a href="#" class="footer-link">社区交流</a>
+                </div>
+                <div>
+                    <div class="footer-col-title">关于</div>
+                    <a href="#" class="footer-link">关于我们</a>
+                    <a href="https://github.com/Beet-le/SpringScreen" class="footer-link">GitHub</a>
+                    <a href="#" class="footer-link">联系我们</a>
+                </div>
+                <div>
+                    <div class="footer-col-title">法律</div>
+                    <a href="#" class="footer-link">隐私政策</a>
+                    <a href="#" class="footer-link">用户协议</a>
+                    <a href="#" class="footer-link">开源协议</a>
+                </div>
+            </div>
+            <div class="footer-legal">
+                <p class="footer-legal-text">
+                    Copyright &copy; 2026 小秋截图 SpringScreenShot. 
+                </p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

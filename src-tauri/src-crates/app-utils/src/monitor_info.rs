@@ -89,6 +89,25 @@ impl MonitorInfo {
                 monitor_scale_factor,
             }
         }
+
+        #[cfg(target_os = "linux")]
+        {
+            let x = monitor.x().unwrap_or(0);
+            let y = monitor.y().unwrap_or(0);
+            monitor_rect = ElementRect {
+                min_x: x,
+                min_y: y,
+                max_x: x + monitor.width().unwrap_or(0) as i32,
+                max_y: y + monitor.height().unwrap_or(0) as i32,
+            };
+            scale_factor = monitor.scale_factor().unwrap_or(1.0);
+
+            MonitorInfo {
+                monitor: monitor.clone(),
+                rect: monitor_rect,
+                scale_factor,
+            }
+        }
     }
 
     pub fn get_monitor_crop_region(&self, crop_region: ElementRect) -> ElementRect {
@@ -166,7 +185,7 @@ impl MonitorInfo {
         exclude_window: Option<&tauri::Window>,
         capture_option: CaptureOption,
     ) -> Option<image::DynamicImage> {
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", target_os = "linux"))]
         {
             return super::capture_target_monitor(
                 &self.monitor,
@@ -279,7 +298,7 @@ impl MonitorList {
                     )
                 }
 
-                #[cfg(target_os = "macos")]
+                #[cfg(any(target_os = "macos", target_os = "linux"))]
                 {
                     MonitorInfo::new(monitor)
                 }
@@ -802,7 +821,7 @@ impl MonitorList {
                         .any(|monitor| monitor.monitor_hdr_info.hdr_enabled)
             }
 
-            #[cfg(target_os = "macos")]
+            #[cfg(not(target_os = "windows"))]
             {
                 false
             }
@@ -952,7 +971,7 @@ mod tests {
                 max_y: 2160,
             };
         }
-        #[cfg(target_os = "macos")]
+        #[cfg(not(target_os = "windows"))]
         {
             crop_region = ElementRect {
                 min_x: 0,

@@ -23,4 +23,10 @@ pub async fn create_shared_buffer(
     {
         windows::create_shared_buffer(webview, data, extra_data, transfer_type).await
     }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        Err(String::from(
+            "[create_shared_buffer] Not supported on this platform",
+        ))
+    }
 }

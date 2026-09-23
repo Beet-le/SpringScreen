@@ -118,7 +118,6 @@ snow-shot-webview = { workspace = true }
 snow-shot-http-services = { workspace = true }
 snow-shot-tauri-commands-http-service = { workspace = true }
 snow-shot-global-state = { workspace = true }
-snow-shot-image-viewer-native = { workspace = true }
 
 # workspace 依赖
 tokio = { workspace = true }
@@ -162,6 +161,7 @@ tauri-plugin-window-state = "2"       # 窗口状态持久化（位置、大小�
 
 # Windows 平台专属依赖
 [target.'cfg(any(target_os = "windows"))'.dependencies]
+snow-shot-image-viewer-native = { workspace = true }
 windows-sys = { version = "0.60", features = [
     "Win32_System_Threading",   # OpenMutexW, WaitForSingleObject（单实例互斥锁预检查）
     "Win32_Foundation",         # CloseHandle, HANDLE

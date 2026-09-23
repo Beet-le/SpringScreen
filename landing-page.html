@@ -1,0 +1,1478 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spring ScreenShot - 截你所想，录你所见</title>
+    <meta name="description" content="Spring ScreenShot 是一款轻量级截图、录屏、OCR文字识别工具，为低配置Windows设备深度优化，让您的工作效率翻倍。">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --green-50: #ecfdf5;
+            --green-100: #d1fae5;
+            --green-200: #a7f3d0;
+            --green-300: #6ee7b7;
+            --green-400: #34d399;
+            --green-500: #10b981;
+            --green-600: #059669;
+            --green-700: #047857;
+            --green-800: #065f46;
+            --green-900: #064e3b;
+
+            --slate-50: #f8fafc;
+            --slate-100: #f1f5f9;
+            --slate-200: #e2e8f0;
+            --slate-300: #cbd5e1;
+            --slate-400: #94a3b8;
+            --slate-500: #64748b;
+            --slate-600: #475569;
+            --slate-700: #334155;
+            --slate-800: #1e293b;
+            --slate-900: #0f172a;
+
+            --primary: var(--green-600);
+            --primary-light: var(--green-500);
+            --primary-dark: var(--green-700);
+            --primary-gradient: linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%);
+            --primary-glow: rgba(16, 185, 129, 0.15);
+
+            --text-primary: var(--slate-900);
+            --text-secondary: var(--slate-600);
+            --text-muted: var(--slate-400);
+            --text-inverse: #ffffff;
+
+            --bg-primary: #ffffff;
+            --bg-secondary: var(--slate-50);
+            --bg-dark: var(--slate-900);
+            --bg-dark-soft: var(--slate-800);
+
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 24px;
+            --radius-full: 9999px;
+
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+            --shadow-green: 0 4px 14px 0 rgba(16, 185, 129, 0.25);
+            --shadow-green-lg: 0 8px 30px 0 rgba(16, 185, 129, 0.3);
+
+            --transition-fast: 150ms ease;
+            --transition-normal: 250ms ease;
+            --transition-slow: 350ms ease;
+        }
+
+        body {
+            font-family: 'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+            color: var(--text-primary);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            overflow-x: hidden;
+        }
+
+        /* ===== NAVIGATION ===== */
+        .nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+            transition: var(--transition-normal);
+        }
+
+        .nav-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .nav-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 18px;
+            color: var(--text-primary);
+            transition: var(--transition-fast);
+        }
+
+        .nav-logo:hover {
+            color: var(--primary);
+        }
+
+        .nav-logo-mark {
+            width: 32px;
+            height: 32px;
+            background: var(--primary-gradient);
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            box-shadow: var(--shadow-green);
+        }
+
+        .nav-logo-mark::before {
+            content: '';
+            position: absolute;
+            inset: 5px;
+            border: 1.5px solid rgba(255, 255, 255, 0.9);
+            border-radius: 3px;
+        }
+
+        .nav-logo-mark::after {
+            content: '';
+            position: absolute;
+            top: 7px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 3px;
+            height: 3px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 50%;
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 32px;
+        }
+
+        .nav-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 15px;
+            font-weight: 500;
+            transition: var(--transition-fast);
+            position: relative;
+        }
+
+        .nav-link:hover {
+            color: var(--primary);
+        }
+
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--primary);
+            border-radius: var(--radius-full);
+            transition: var(--transition-normal);
+        }
+
+        .nav-link:hover::after {
+            width: 100%;
+        }
+
+        .nav-cta {
+            background: var(--primary-gradient);
+            color: white;
+            padding: 8px 20px;
+            border-radius: var(--radius-full);
+            font-size: 14px;
+            font-weight: 600;
+            text-decoration: none;
+            box-shadow: var(--shadow-green);
+            transition: var(--transition-normal);
+        }
+
+        .nav-cta:hover {
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-green-lg);
+        }
+
+        /* ===== HERO ===== */
+        .hero {
+            position: relative;
+            padding: 140px 24px 80px;
+            overflow: hidden;
+            background: var(--bg-secondary);
+        }
+
+        .hero-bg {
+            position: absolute;
+            inset: 0;
+            overflow: hidden;
+        }
+
+        .hero-bg::before {
+            content: '';
+            position: absolute;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
+            top: -200px;
+            right: -100px;
+            animation: float 8s ease-in-out infinite;
+        }
+
+        .hero-bg::after {
+            content: '';
+            position: absolute;
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(16, 185, 129, 0.08) 0%, transparent 70%);
+            bottom: -100px;
+            left: -100px;
+            animation: float 10s ease-in-out infinite reverse;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(30px, -30px) scale(1.1); }
+        }
+
+        .hero-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 64px;
+            align-items: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: white;
+            border: 1px solid var(--green-200);
+            color: var(--primary);
+            padding: 6px 16px;
+            border-radius: var(--radius-full);
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .hero-badge-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--green-400);
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .hero-title {
+            font-size: 52px;
+            font-weight: 800;
+            line-height: 1.1;
+            letter-spacing: -0.02em;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, var(--slate-900) 0%, var(--slate-700) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero-title span {
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero-subtitle {
+            font-size: 19px;
+            color: var(--text-secondary);
+            line-height: 1.7;
+            margin-bottom: 32px;
+            max-width: 480px;
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 40px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 28px;
+            border-radius: var(--radius-full);
+            font-size: 15px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: var(--transition-normal);
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-primary {
+            background: var(--primary-gradient);
+            color: white;
+            box-shadow: var(--shadow-green);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-green-lg);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: var(--text-primary);
+            border: 1px solid var(--slate-200);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--green-300);
+            color: var(--primary);
+            box-shadow: var(--shadow-md);
+        }
+
+        .hero-stats {
+            display: flex;
+            gap: 32px;
+        }
+
+        .hero-stat {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .hero-stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--primary);
+            line-height: 1;
+        }
+
+        .hero-stat-label {
+            font-size: 13px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .hero-visual {
+            position: relative;
+        }
+
+        .hero-image-wrapper {
+            position: relative;
+            border-radius: var(--radius-xl);
+            overflow: hidden;
+            box-shadow: var(--shadow-xl);
+            background: white;
+            border: 1px solid var(--slate-200);
+        }
+
+        .hero-image-wrapper::before {
+            content: '';
+            position: absolute;
+            inset: -2px;
+            background: var(--primary-gradient);
+            border-radius: calc(var(--radius-xl) + 2px);
+            z-index: -1;
+            opacity: 0.3;
+            filter: blur(8px);
+        }
+
+        .hero-image {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .hero-floating-card {
+            position: absolute;
+            background: white;
+            border-radius: var(--radius-lg);
+            padding: 12px 16px;
+            box-shadow: var(--shadow-lg);
+            border: 1px solid var(--slate-100);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            animation: float-card 6s ease-in-out infinite;
+        }
+
+        .hero-floating-card-1 {
+            top: -20px;
+            right: -20px;
+            animation-delay: 0s;
+        }
+
+        .hero-floating-card-2 {
+            bottom: 40px;
+            left: -30px;
+            animation-delay: -3s;
+        }
+
+        @keyframes float-card {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .floating-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        .floating-icon-green {
+            background: var(--green-100);
+        }
+
+        .floating-icon-blue {
+            background: #dbeafe;
+        }
+
+        /* ===== SECTIONS COMMON ===== */
+        .section {
+            padding: 100px 24px;
+        }
+
+        .section-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .section-header {
+            text-align: center;
+            max-width: 640px;
+            margin: 0 auto 64px;
+        }
+
+        .section-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--primary);
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .section-title {
+            font-size: 40px;
+            font-weight: 800;
+            line-height: 1.15;
+            letter-spacing: -0.02em;
+            margin-bottom: 16px;
+            color: var(--text-primary);
+        }
+
+        .section-desc {
+            font-size: 18px;
+            color: var(--text-secondary);
+            line-height: 1.7;
+        }
+
+        /* ===== FEATURES ===== */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+        }
+
+        .feature-card {
+            background: white;
+            border: 1px solid var(--slate-100);
+            border-radius: var(--radius-xl);
+            padding: 32px;
+            transition: var(--transition-normal);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--primary-gradient);
+            opacity: 0;
+            transition: var(--transition-normal);
+        }
+
+        .feature-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-xl);
+            border-color: var(--green-200);
+        }
+
+        .feature-card:hover::before {
+            opacity: 1;
+        }
+
+        .feature-icon-wrap {
+            width: 52px;
+            height: 52px;
+            border-radius: var(--radius-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            margin-bottom: 20px;
+            transition: var(--transition-normal);
+        }
+
+        .feature-card:hover .feature-icon-wrap {
+            transform: scale(1.1);
+        }
+
+        .feature-icon-green { background: var(--green-50); }
+        .feature-icon-blue { background: #eff6ff; }
+        .feature-icon-purple { background: #f5f3ff; }
+        .feature-icon-orange { background: #fff7ed; }
+        .feature-icon-pink { background: #fdf2f8; }
+        .feature-icon-cyan { background: #ecfeff; }
+
+        .feature-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 10px;
+            color: var(--text-primary);
+        }
+
+        .feature-desc {
+            font-size: 15px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .feature-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            color: var(--primary);
+            font-size: 14px;
+            font-weight: 600;
+            text-decoration: none;
+            margin-top: 16px;
+            transition: var(--transition-fast);
+        }
+
+        .feature-link:hover {
+            gap: 8px;
+        }
+
+        /* ===== SHOWCASE ===== */
+        .showcase {
+            background: var(--bg-dark);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .showcase::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(circle at 20% 50%, rgba(16, 185, 129, 0.08) 0%, transparent 50%),
+                radial-gradient(circle at 80% 50%, rgba(16, 185, 129, 0.05) 0%, transparent 50%);
+        }
+
+        .showcase-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 32px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .showcase-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: var(--radius-xl);
+            padding: 40px;
+            transition: var(--transition-normal);
+        }
+
+        .showcase-card:hover {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(16, 185, 129, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .showcase-icon {
+            width: 48px;
+            height: 48px;
+            background: rgba(16, 185, 129, 0.15);
+            border-radius: var(--radius-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            margin-bottom: 20px;
+        }
+
+        .showcase-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 10px;
+        }
+
+        .showcase-desc {
+            font-size: 15px;
+            color: var(--slate-400);
+            line-height: 1.6;
+        }
+
+        .showcase-check {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 16px;
+            font-size: 14px;
+            color: var(--green-400);
+            font-weight: 500;
+        }
+
+        /* ===== PERFORMANCE ===== */
+        .performance {
+            background: var(--bg-secondary);
+        }
+
+        .perf-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 64px;
+            align-items: center;
+        }
+
+        .perf-visual {
+            position: relative;
+        }
+
+        .perf-image {
+            width: 100%;
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-xl);
+        }
+
+        .perf-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+        }
+
+        .perf-stat-card {
+            background: white;
+            border-radius: var(--radius-lg);
+            padding: 28px;
+            border: 1px solid var(--slate-100);
+            transition: var(--transition-normal);
+        }
+
+        .perf-stat-card:hover {
+            box-shadow: var(--shadow-lg);
+            border-color: var(--green-200);
+        }
+
+        .perf-stat-number {
+            font-size: 36px;
+            font-weight: 800;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            line-height: 1;
+            margin-bottom: 8px;
+        }
+
+        .perf-stat-label {
+            font-size: 15px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .perf-stat-desc {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* ===== USE CASES ===== */
+        .cases-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+        }
+
+        .case-card {
+            background: white;
+            border-radius: var(--radius-xl);
+            padding: 32px;
+            border: 1px solid var(--slate-100);
+            text-align: center;
+            transition: var(--transition-normal);
+        }
+
+        .case-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-xl);
+        }
+
+        .case-avatar {
+            width: 64px;
+            height: 64px;
+            border-radius: var(--radius-full);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            margin: 0 auto 20px;
+            background: var(--green-50);
+            border: 2px solid var(--green-100);
+        }
+
+        .case-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .case-desc {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* ===== TESTIMONIALS ===== */
+        .testimonials {
+            background: var(--bg-secondary);
+        }
+
+        .testimonials-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+        }
+
+        .testimonial-card {
+            background: white;
+            border-radius: var(--radius-xl);
+            padding: 32px;
+            border: 1px solid var(--slate-100);
+            position: relative;
+        }
+
+        .testimonial-card::before {
+            content: '"';
+            position: absolute;
+            top: 16px;
+            right: 24px;
+            font-size: 64px;
+            color: var(--green-100);
+            font-family: Georgia, serif;
+            line-height: 1;
+        }
+
+        .testimonial-text {
+            font-size: 16px;
+            color: var(--text-secondary);
+            line-height: 1.7;
+            margin-bottom: 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .testimonial-author {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .testimonial-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: var(--radius-full);
+            background: var(--primary-gradient);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .testimonial-name {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .testimonial-role {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        /* ===== CTA ===== */
+        .cta {
+            background: var(--bg-dark);
+            position: relative;
+            overflow: hidden;
+            padding: 120px 24px;
+        }
+
+        .cta::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(circle at 50% 0%, rgba(16, 185, 129, 0.15) 0%, transparent 60%),
+                radial-gradient(circle at 80% 100%, rgba(16, 185, 129, 0.08) 0%, transparent 50%);
+        }
+
+        .cta-inner {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            max-width: 640px;
+            margin: 0 auto;
+        }
+
+        .cta-title {
+            font-size: 48px;
+            font-weight: 800;
+            color: white;
+            line-height: 1.1;
+            letter-spacing: -0.02em;
+            margin-bottom: 20px;
+        }
+
+        .cta-desc {
+            font-size: 18px;
+            color: var(--slate-400);
+            margin-bottom: 40px;
+            line-height: 1.7;
+        }
+
+        .cta-buttons {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            margin-bottom: 32px;
+        }
+
+        .cta-note {
+            font-size: 14px;
+            color: var(--slate-500);
+        }
+
+        .cta-note code {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 4px 10px;
+            border-radius: var(--radius-sm);
+            color: var(--green-400);
+            font-family: 'SF Mono', monospace;
+        }
+
+        /* ===== FOOTER ===== */
+        .footer {
+            background: var(--bg-dark-soft);
+            padding: 64px 24px 32px;
+        }
+
+        .footer-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .footer-grid {
+            display: grid;
+            grid-template-columns: 2fr repeat(3, 1fr);
+            gap: 48px;
+            margin-bottom: 48px;
+        }
+
+        .footer-brand {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .footer-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 18px;
+            font-weight: 700;
+            color: white;
+            text-decoration: none;
+        }
+
+        .footer-logo-mark {
+            width: 32px;
+            height: 32px;
+            background: var(--primary-gradient);
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            box-shadow: var(--shadow-green);
+        }
+
+        .footer-logo-mark::before {
+            content: '';
+            position: absolute;
+            inset: 5px;
+            border: 1.5px solid rgba(255, 255, 255, 0.9);
+            border-radius: 3px;
+        }
+
+        .footer-logo-mark::after {
+            content: '';
+            position: absolute;
+            top: 7px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 3px;
+            height: 3px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 50%;
+        }
+
+        .footer-desc {
+            font-size: 14px;
+            color: var(--slate-400);
+            line-height: 1.7;
+            max-width: 280px;
+        }
+
+        .footer-column-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 16px;
+        }
+
+        .footer-link {
+            display: block;
+            color: var(--slate-400);
+            text-decoration: none;
+            font-size: 14px;
+            padding: 6px 0;
+            transition: var(--transition-fast);
+        }
+
+        .footer-link:hover {
+            color: var(--green-400);
+        }
+
+        .footer-bottom {
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            padding-top: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .footer-copyright {
+            font-size: 13px;
+            color: var(--slate-500);
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 1024px) {
+            .hero-inner {
+                grid-template-columns: 1fr;
+                text-align: center;
+            }
+
+            .hero-subtitle {
+                margin-left: auto;
+                margin-right: auto;
+            }
+
+            .hero-buttons {
+                justify-content: center;
+            }
+
+            .hero-stats {
+                justify-content: center;
+            }
+
+            .hero-visual {
+                order: -1;
+                max-width: 600px;
+                margin: 0 auto;
+            }
+
+            .features-grid,
+            .cases-grid,
+            .testimonials-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .perf-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .perf-visual {
+                order: -1;
+            }
+
+            .footer-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+
+            .hero-title {
+                font-size: 36px;
+            }
+
+            .section-title {
+                font-size: 28px;
+            }
+
+            .features-grid,
+            .showcase-grid,
+            .cases-grid,
+            .testimonials-grid,
+            .perf-stats {
+                grid-template-columns: 1fr;
+            }
+
+            .cta-title {
+                font-size: 32px;
+            }
+
+            .footer-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .footer-bottom {
+                flex-direction: column;
+                gap: 12px;
+                text-align: center;
+            }
+        }
+
+        /* ===== ANIMATIONS ===== */
+        .fade-in {
+            opacity: 0;
+            transform: translateY(20px);
+            animation: fadeIn 0.6s ease forwards;
+        }
+
+        @keyframes fadeIn {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .fade-in-delay-1 { animation-delay: 0.1s; }
+        .fade-in-delay-2 { animation-delay: 0.2s; }
+        .fade-in-delay-3 { animation-delay: 0.3s; }
+
+        html {
+            scroll-behavior: smooth;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="nav-inner">
+            <a href="#" class="nav-logo">
+                <div class="nav-logo-mark"></div>
+                <span>Spring ScreenShot</span>
+            </a>
+            <div class="nav-links">
+                <a href="#features" class="nav-link">功能</a>
+                <a href="#showcase" class="nav-link">亮点</a>
+                <a href="#performance" class="nav-link">性能</a>
+                <a href="#cases" class="nav-link">场景</a>
+                <a href="#download" class="nav-cta">免费下载</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="hero">
+        <div class="hero-bg"></div>
+        <div class="hero-inner">
+            <div class="hero-content">
+                <div class="hero-badge fade-in">
+                    <span class="hero-badge-dot"></span>
+                    <span>为低配置设备深度优化</span>
+                </div>
+                <h1 class="hero-title fade-in fade-in-delay-1">
+                    截你所想<br><span>录你所见</span>
+                </h1>
+                <p class="hero-subtitle fade-in fade-in-delay-2">
+                    轻量、高效、专业的桌面截图工具。截图、录屏、OCR、AI对话，一站式解决您的屏幕捕捉需求。
+                </p>
+                <div class="hero-buttons fade-in fade-in-delay-2">
+                    <a href="#download" class="btn btn-primary">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        免费下载
+                    </a>
+                    <a href="#features" class="btn btn-secondary">了解更多</a>
+                </div>
+                <div class="hero-stats fade-in fade-in-delay-3">
+                    <div class="hero-stat">
+                        <span class="hero-stat-value">50%+</span>
+                        <span class="hero-stat-label">内存占用降低</span>
+                    </div>
+                    <div class="hero-stat">
+                        <span class="hero-stat-value">6+</span>
+                        <span class="hero-stat-label">核心功能</span>
+                    </div>
+                    <div class="hero-stat">
+                        <span class="hero-stat-value">0</span>
+                        <span class="hero-stat-label">元永久免费</span>
+                    </div>
+                </div>
+            </div>
+            <div class="hero-visual fade-in fade-in-delay-3">
+                <div class="hero-image-wrapper">
+                    <img src="https://snowshot.top/assets/snow_shot_home.webp" alt="Spring ScreenShot 主界面" class="hero-image">
+                </div>
+                <div class="hero-floating-card hero-floating-card-1">
+                    <div class="floating-icon floating-icon-green">✓</div>
+                    <span>截图已保存</span>
+                </div>
+                <div class="hero-floating-card hero-floating-card-2">
+                    <div class="floating-icon floating-icon-blue">⚡</div>
+                    <span>启动仅需 0.3s</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features -->
+    <section class="section" id="features">
+        <div class="section-inner">
+            <div class="section-header">
+                <div class="section-label">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    核心功能
+                </div>
+                <h2 class="section-title">一站式屏幕捕捉解决方案</h2>
+                <p class="section-desc">从截图到录屏，从OCR到AI对话，满足您所有的屏幕捕捉需求</p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon-wrap feature-icon-green">📸</div>
+                    <h3 class="feature-title">智能截图</h3>
+                    <p class="feature-desc">区域截图、窗口捕捉、全屏截图，智能识别UI元素，精准捕捉所需内容</p>
+                    <a href="#" class="feature-link">了解更多 →</a>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon-wrap feature-icon-blue">🎬</div>
+                    <h3 class="feature-title">屏幕录制</h3>
+                    <p class="feature-desc">高质量录屏，支持视频和GIF格式，完美捕捉每个精彩瞬间</p>
+                    <a href="#" class="feature-link">了解更多 →</a>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon-wrap feature-icon-purple">📜</div>
+                    <h3 class="feature-title">长截图</h3>
+                    <p class="feature-desc">智能滚动截图，自动拼接长页面，重构渲染逻辑让长截图流畅无比</p>
+                    <a href="#" class="feature-link">了解更多 →</a>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon-wrap feature-icon-orange">🔍</div>
+                    <h3 class="feature-title">OCR文字识别</h3>
+                    <p class="feature-desc">快速提取图片中的文字，支持多语言识别，让文本提取简单高效</p>
+                    <a href="#" class="feature-link">了解更多 →</a>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon-wrap feature-icon-pink">🖼️</div>
+                    <h3 class="feature-title">看图功能</h3>
+                    <p class="feature-desc">Mipmap策略优化，针对亿万级像素深度优化，几十MB图片轻松查看</p>
+                    <a href="#" class="feature-link">了解更多 →</a>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon-wrap feature-icon-cyan">🤖</div>
+                    <h3 class="feature-title">AI对话</h3>
+                    <p class="feature-desc">内置AI对话，支持多模型配置，快速访问前沿AI大模型提升效率</p>
+                    <a href="#" class="feature-link">了解更多 →</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Showcase -->
+    <section class="section showcase" id="showcase">
+        <div class="section-inner">
+            <div class="section-header">
+                <div class="section-label" style="color: var(--green-400);">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    功能亮点
+                </div>
+                <h2 class="section-title" style="color: white;">专业级功能，简洁易用</h2>
+                <p class="section-desc" style="color: var(--slate-400);">每一个功能都经过精心优化，只为给您最好的使用体验</p>
+            </div>
+            <div class="showcase-grid">
+                <div class="showcase-card">
+                    <div class="showcase-icon">🎯</div>
+                    <h3 class="showcase-title">精准截图</h3>
+                    <p class="showcase-desc">智能检测窗口和UI元素，让截图变得前所未有的简单</p>
+                    <div class="showcase-check">✓ 智能窗口识别</div>
+                    <div class="showcase-check">✓ 灵活框选</div>
+                    <div class="showcase-check">✓ 键盘微调</div>
+                </div>
+                <div class="showcase-card">
+                    <div class="showcase-icon">📝</div>
+                    <h3 class="showcase-title">丰富标注</h3>
+                    <p class="showcase-desc">强大的标注工具，让您的截图会说话</p>
+                    <div class="showcase-check">✓ 多种标注工具</div>
+                    <div class="showcase-check">✓ 自定义颜色</div>
+                    <div class="showcase-check">✓ 撤销重做</div>
+                </div>
+                <div class="showcase-card">
+                    <div class="showcase-icon">💾</div>
+                    <h3 class="showcase-title">保存分享</h3>
+                    <p class="showcase-desc">多种保存方式，让分享变得简单</p>
+                    <div class="showcase-check">✓ 复制到剪贴板</div>
+                    <div class="showcase-check">✓ 保存为文件</div>
+                    <div class="showcase-check">✓ 固定到屏幕</div>
+                </div>
+                <div class="showcase-card">
+                    <div class="showcase-icon">⌨️</div>
+                    <h3 class="showcase-title">快捷操作</h3>
+                    <p class="showcase-desc">快捷键配置，托盘菜单，让操作更高效</p>
+                    <div class="showcase-check">✓ 全局快捷键</div>
+                    <div class="showcase-check">✓ 托盘菜单</div>
+                    <div class="showcase-check">✓ 命令行启动</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Performance -->
+    <section class="section performance" id="performance">
+        <div class="section-inner">
+            <div class="section-header">
+                <div class="section-label">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                    极致性能
+                </div>
+                <h2 class="section-title">为低配置设备而生</h2>
+                <p class="section-desc">专为低配置Windows设备深度优化，让每一分内存都物尽其用</p>
+            </div>
+            <div class="perf-grid">
+                <div class="perf-visual">
+                    <img src="https://snowshot.top/assets/guide-star.webp" alt="性能优化" class="perf-image">
+                </div>
+                <div class="perf-stats">
+                    <div class="perf-stat-card">
+                        <div class="perf-stat-number">50%+</div>
+                        <div class="perf-stat-label">内存占用降低</div>
+                        <div class="perf-stat-desc">重构渲染逻辑，大幅降低内存占用</div>
+                    </div>
+                    <div class="perf-stat-card">
+                        <div class="perf-stat-number">流畅</div>
+                        <div class="perf-stat-label">长截图渲染</div>
+                        <div class="perf-stat-desc">智能拼接，告别卡顿和崩溃</div>
+                    </div>
+                    <div class="perf-stat-card">
+                        <div class="perf-stat-number">稳定</div>
+                        <div class="perf-stat-label">长时间运行</div>
+                        <div class="perf-stat-desc">解决内存持续上涨问题</div>
+                    </div>
+                    <div class="perf-stat-card">
+                        <div class="perf-stat-number">快速</div>
+                        <div class="perf-stat-label">命令行启动</div>
+                        <div class="perf-stat-desc">一行命令快速唤起截图面板</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Use Cases -->
+    <section class="section" id="cases">
+        <div class="section-inner">
+            <div class="section-header">
+                <div class="section-label">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    应用场景
+                </div>
+                <h2 class="section-title">适合所有人</h2>
+                <p class="section-desc">无论您是哪个行业的从业者，Spring ScreenShot 都能提升您的工作效率</p>
+            </div>
+            <div class="cases-grid">
+                <div class="case-card">
+                    <div class="case-avatar">💻</div>
+                    <h3 class="case-title">开发者</h3>
+                    <p class="case-desc">快速捕捉错误信息、API文档和代码片段，通过截图或视频记录Bug</p>
+                </div>
+                <div class="case-card">
+                    <div class="case-avatar">🎨</div>
+                    <h3 class="case-title">设计师</h3>
+                    <p class="case-desc">截取设计参考、标注UI元素，贴图功能让灵感随时可见</p>
+                </div>
+                <div class="case-card">
+                    <div class="case-avatar">📊</div>
+                    <h3 class="case-title">产品经理</h3>
+                    <p class="case-desc">记录用户流程、截取反馈线程，使用长截图和OCR保持有序</p>
+                </div>
+                <div class="case-card">
+                    <div class="case-avatar">🎓</div>
+                    <h3 class="case-title">教育者</h3>
+                    <p class="case-desc">创建带标注的教程和演示，使用截图和GIF清晰解释概念</p>
+                </div>
+                <div class="case-card">
+                    <div class="case-avatar">✍️</div>
+                    <h3 class="case-title">作家</h3>
+                    <p class="case-desc">使用OCR提取引用，贴图视觉便签和参考资料，写作更高效</p>
+                </div>
+                <div class="case-card">
+                    <div class="case-avatar">🎧</div>
+                    <h3 class="case-title">客服</h3>
+                    <p class="case-desc">逐步记录问题，录屏标注让指导更直观，提升用户体验</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Testimonials -->
+    <section class="section testimonials">
+        <div class="section-inner">
+            <div class="section-header">
+                <div class="section-label">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+                    用户评价
+                </div>
+                <h2 class="section-title">听听用户怎么说</h2>
+                <p class="section-desc">来自真实用户的反馈，我们持续优化只为给您最好的体验</p>
+            </div>
+            <div class="testimonials-grid">
+                <div class="testimonial-card">
+                    <p class="testimonial-text">能截长图、录GIF、还能OCR，这可能是最强的免费截图工具。而且在我的老电脑上运行得飞快！</p>
+                    <div class="testimonial-author">
+                        <div class="testimonial-avatar">用</div>
+                        <div>
+                            <div class="testimonial-name">资深用户</div>
+                            <div class="testimonial-role">Windows 10 用户</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="testimonial-card">
+                    <p class="testimonial-text">截图、贴图、标注、文字识别，都是办公时非常需要的功能。一个软件搞定所有需求，强烈推荐！</p>
+                    <div class="testimonial-author">
+                        <div class="testimonial-avatar">评</div>
+                        <div>
+                            <div class="testimonial-name">办公软件评测</div>
+                            <div class="testimonial-role">技术博主</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="testimonial-card">
+                    <p class="testimonial-text">梦想中的截图工具，终于有人做出来了！低配置电脑的福音，内存占用真的很低。</p>
+                    <div class="testimonial-author">
+                        <div class="testimonial-avatar">博</div>
+                        <div>
+                            <div class="testimonial-name">技术博主</div>
+                            <div class="testimonial-role">独立开发者</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="cta" id="download">
+        <div class="cta-inner">
+            <h2 class="cta-title">立即开始使用 Spring ScreenShot</h2>
+            <p class="cta-desc">免费下载，无需注册。支持 Windows 和 macOS，让屏幕捕捉变得简单高效</p>
+            <div class="cta-buttons">
+                <a href="#" class="btn btn-primary">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    免费下载
+                </a>
+                <a href="https://snowshot.top/guide/index.html" class="btn btn-secondary" style="background: rgba(255,255,255,0.1); color: white; border-color: rgba(255,255,255,0.2);">
+                    查看文档
+                </a>
+            </div>
+            <p class="cta-note">
+                命令行启动: <code>SpringScreen.exe --open-draw</code>
+            </p>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-inner">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <a href="#" class="footer-logo">
+                        <div class="footer-logo-mark"></div>
+                        <span>Spring ScreenShot</span>
+                    </a>
+                    <p class="footer-desc">轻量、高效、专业的桌面截图工具。为低配置Windows设备深度优化。</p>
+                </div>
+                <div>
+                    <div class="footer-column-title">产品</div>
+                    <a href="#features" class="footer-link">功能特性</a>
+                    <a href="#download" class="footer-link">下载</a>
+                    <a href="#" class="footer-link">更新日志</a>
+                </div>
+                <div>
+                    <div class="footer-column-title">资源</div>
+                    <a href="https://snowshot.top/guide/index.html" class="footer-link">使用文档</a>
+                    <a href="#" class="footer-link">常见问题</a>
+                    <a href="#" class="footer-link">社区交流</a>
+                </div>
+                <div>
+                    <div class="footer-column-title">关于</div>
+                    <a href="#" class="footer-link">关于我们</a>
+                    <a href="https://github.com/mg-chao/snow-shot" class="footer-link">GitHub</a>
+                    <a href="#" class="footer-link">联系我们</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p class="footer-copyright">Copyright © 2026 Spring ScreenShot.</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

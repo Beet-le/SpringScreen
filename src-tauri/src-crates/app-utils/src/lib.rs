@@ -214,7 +214,7 @@ pub fn get_capture_monitor_list(
         support_multiple_monitor = true;
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
     {
         // 检查所有显示器的 scale_factor 是否一致
         let (all_same_scale, _) = check_monitor_scale_factors_consistent();
@@ -258,7 +258,7 @@ pub fn get_window_id_from_ns_handle(ns_handle: *mut std::ffi::c_void) -> u32 {
 ///
 /// 返回一个元组：(是否一致, 所有 scale_factor 的列表)
 /// 如果只有一个显示器，则认为是一致的
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 pub fn check_monitor_scale_factors_consistent() -> (bool, Vec<f32>) {
     let scale_factors: Vec<f32> = xcap::Monitor::all()
         .unwrap_or_default()
@@ -343,6 +343,46 @@ pub fn capture_target_monitor(
         };
 
         return Some(image);
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        // Linux（X11/Wayland）通过 xcap 捕获，仅有 RGBA 接口，Rgb8 需求时做一次转换
+        let rgba_image = if let Some(crop_area) = crop_area {
+            match monitor.capture_region(
+                crop_area.min_x as u32,
+                crop_area.min_y as u32,
+                (crop_area.max_x - crop_area.min_x) as u32,
+                (crop_area.max_y - crop_area.min_y) as u32,
+            ) {
+                Ok(image) => image,
+                Err(e) => {
+                    log::error!(
+                        "[capture_target_monitor] failed to capture image: {:?}",
+                        e
+                    );
+                    return None;
+                }
+            }
+        } else {
+            match monitor.capture_image() {
+                Ok(image) => image,
+                Err(e) => {
+                    log::error!(
+                        "[capture_target_monitor] failed to capture image: {:?}",
+                        e
+                    );
+                    return None;
+                }
+            }
+        };
+
+        return Some(match color_format {
+            ColorFormat::Rgb8 => {
+                DynamicImage::ImageRgb8(image::DynamicImage::ImageRgba8(rgba_image).to_rgb8())
+            }
+            ColorFormat::Rgba8 => DynamicImage::ImageRgba8(rgba_image),
+        });
     }
 
     #[cfg(target_os = "macos")]
@@ -890,7 +930,7 @@ pub async fn set_exclude_from_capture(
     #[allow(unused_variables)] window: &tauri::Window,
     #[allow(unused_variables)] enable: bool,
 ) -> Result<(), String> {
-    #[cfg(target_os = "macos")]
+    #[cfg(not(target_os = "windows"))]
     {
         return Ok(());
     }
