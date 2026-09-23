@@ -1,0 +1,938 @@
+﻿@*
+    For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
+*@
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小秋桌面 - 让智能点亮你的每一个瞬间</title>
+    <link href="~/libs/@@fortawesome/fontawesome-free/css/all.css" rel="stylesheet" />
+    <style>
+        :root {
+            --primary: #43a047;
+            --primary-light: #66bb6a;
+            --primary-lighter: #a5d6a7;
+            --primary-soft: #e8f5e9;
+            --primary-muted: #c8e6c9;
+            --ink: #1b3a1f;
+            --ink-secondary: #4a6b4f;
+            --ink-muted: #7a9a80;
+            --canvas: #f6fbf7;
+            --canvas-alt: #eef7f0;
+            --card-bg: rgba(255, 255, 255, 0.85);
+            --shadow: 0 4px 24px rgba(67, 160, 71, 0.08);
+            --shadow-hover: 0 8px 32px rgba(67, 160, 71, 0.14);
+            --radius: 18px;
+            --radius-sm: 12px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            color: var(--ink);
+            background: var(--canvas);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ===== Navigation ===== */
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background: rgba(246, 251, 247, 0.82);
+            backdrop-filter: saturate(180%) blur(20px);
+            -webkit-backdrop-filter: saturate(180%) blur(20px);
+            border-bottom: 1px solid rgba(67, 160, 71, 0.08);
+        }
+
+        .nav-inner {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 24px;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--primary-light), var(--primary));
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 14px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 32px;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: var(--ink-secondary);
+            text-decoration: none;
+            font-size: 15px;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--primary);
+        }
+
+        .nav-link-badge {
+            background: var(--primary-soft);
+            color: var(--primary);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .nav-link-badge:hover {
+            background: var(--primary);
+            color: #fff;
+        }
+
+        .mobile-toggle {
+            display: none;
+            flex-direction: column;
+            gap: 5px;
+            cursor: pointer;
+        }
+
+        .mobile-toggle span {
+            width: 24px;
+            height: 2px;
+            background: var(--ink-secondary);
+            border-radius: 2px;
+        }
+
+        /* ===== Hero ===== */
+        header {
+            padding-top: 64px;
+            background: linear-gradient(165deg, var(--canvas-alt) 0%, var(--canvas) 50%, var(--primary-soft) 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .hero {
+            flex: 1;
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 80px 24px;
+            display: flex;
+            align-items: center;
+            gap: 60px;
+        }
+
+        .hero-content {
+            flex: 1;
+        }
+
+        .hero-content h1 {
+            font-size: 52px;
+            font-weight: 800;
+            line-height: 1.15;
+            letter-spacing: -0.02em;
+            margin-bottom: 20px;
+        }
+
+        .hero-content h1 .highlight {
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero-content p {
+            font-size: 20px;
+            color: var(--ink-secondary);
+            margin-bottom: 36px;
+            max-width: 480px;
+        }
+
+        .cta-buttons {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 32px;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.25s ease;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            color: #fff;
+            box-shadow: 0 4px 16px rgba(67, 160, 71, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(67, 160, 71, 0.4);
+        }
+
+        .btn-secondary {
+            background: #fff;
+            color: var(--primary);
+            border: 1.5px solid var(--primary-lighter);
+        }
+
+        .btn-secondary:hover {
+            background: var(--primary-soft);
+            border-color: var(--primary-light);
+        }
+
+        .hero-graphic {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .hero-visual {
+            width: 420px;
+            height: 300px;
+            background: linear-gradient(135deg, rgba(67, 160, 71, 0.08), rgba(102, 187, 106, 0.12));
+            border-radius: 24px;
+            border: 1px solid rgba(67, 160, 71, 0.12);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-visual::before {
+            content: '';
+            position: absolute;
+            top: -60px;
+            right: -60px;
+            width: 200px;
+            height: 200px;
+            background: radial-gradient(circle, rgba(67, 160, 71, 0.15), transparent 70%);
+            border-radius: 50%;
+        }
+
+        .hero-visual::after {
+            content: '';
+            position: absolute;
+            bottom: -40px;
+            left: -40px;
+            width: 160px;
+            height: 160px;
+            background: radial-gradient(circle, rgba(102, 187, 106, 0.12), transparent 70%);
+            border-radius: 50%;
+        }
+
+        .floating-dots {
+            position: absolute;
+            inset: 0;
+        }
+
+        .floating-dots span {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: var(--primary-lighter);
+            border-radius: 50%;
+            animation: float 6s ease-in-out infinite;
+        }
+
+        .floating-dots span:nth-child(1) { top: 20%; left: 15%; animation-delay: 0s; }
+        .floating-dots span:nth-child(2) { top: 60%; left: 80%; animation-delay: 1s; }
+        .floating-dots span:nth-child(3) { top: 35%; left: 70%; animation-delay: 2s; width: 12px; height: 12px; }
+        .floating-dots span:nth-child(4) { top: 75%; left: 25%; animation-delay: 3s; width: 6px; height: 6px; }
+        .floating-dots span:nth-child(5) { top: 15%; left: 55%; animation-delay: 4s; }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-16px); }
+        }
+
+        /* ===== Sections ===== */
+        .section {
+            padding: 100px 24px;
+        }
+
+        .section-alt {
+            background: linear-gradient(180deg, var(--canvas) 0%, var(--primary-soft) 100%);
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+
+        .section-header h2 {
+            font-size: 36px;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .section-header p {
+            font-size: 18px;
+            color: var(--ink-secondary);
+            max-width: 560px;
+            margin: 0 auto;
+        }
+
+        /* ===== Intro Cards ===== */
+        .intro-cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+        }
+
+        .intro-card {
+            background: var(--card-bg);
+            border: 1px solid rgba(67, 160, 71, 0.1);
+            border-radius: var(--radius);
+            padding: 40px 28px;
+            text-align: center;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .intro-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-hover);
+            border-color: rgba(67, 160, 71, 0.2);
+        }
+
+        .card-icon {
+            width: 56px;
+            height: 56px;
+            background: linear-gradient(135deg, var(--primary-soft), var(--primary-muted));
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            color: var(--primary);
+            font-size: 22px;
+        }
+
+        .intro-card h3 {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .intro-card p {
+            font-size: 15px;
+            color: var(--ink-secondary);
+            line-height: 1.7;
+        }
+
+        /* ===== Features Grid ===== */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+
+        .feature-card {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            padding: 32px;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(67, 160, 71, 0.06);
+        }
+
+        .feature-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .feature-icon {
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 18px;
+            margin-bottom: 18px;
+        }
+
+        .feature-card h3 {
+            font-size: 17px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .feature-card p {
+            font-size: 14px;
+            color: var(--ink-secondary);
+            line-height: 1.6;
+        }
+
+        /* ===== Scenarios ===== */
+        .scenarios-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 80px;
+        }
+
+        .scenario {
+            display: flex;
+            align-items: center;
+            gap: 60px;
+        }
+
+        .scenario.reverse {
+            flex-direction: row-reverse;
+        }
+
+        .scenario-content {
+            flex: 1;
+        }
+
+        .scenario-content h3 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+
+        .scenario-content > p {
+            font-size: 16px;
+            color: var(--ink-secondary);
+            line-height: 1.7;
+            margin-bottom: 24px;
+        }
+
+        .scenario-features {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .scenario-features li {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 15px;
+            color: var(--ink-secondary);
+        }
+
+        .scenario-features li i {
+            color: var(--primary-light);
+            font-size: 18px;
+        }
+
+        .scenario-image {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+        }
+
+        .mockup {
+            width: 100%;
+            max-width: 440px;
+            aspect-ratio: 16 / 10;
+            background: linear-gradient(135deg, var(--primary-soft), var(--canvas-alt));
+            border-radius: var(--radius);
+            border: 1px solid rgba(67, 160, 71, 0.12);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .mockup img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .mockup-badge {
+            position: absolute;
+            bottom: 16px;
+            left: 16px;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        /* ===== Download ===== */
+        .download-cards {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            flex-wrap: wrap;
+        }
+
+        .download-card {
+            background: var(--card-bg);
+            border: 1px solid rgba(67, 160, 71, 0.1);
+            border-radius: var(--radius);
+            padding: 40px 48px;
+            text-align: center;
+            min-width: 220px;
+            transition: all 0.3s ease;
+        }
+
+        .download-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .download-icon {
+            width: 56px;
+            height: 56px;
+            background: linear-gradient(135deg, var(--primary-soft), var(--primary-muted));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 16px;
+            color: var(--primary);
+            font-size: 24px;
+        }
+
+        .download-card h3 {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+
+        .btn-download {
+            background: var(--primary-soft);
+            color: var(--primary);
+            padding: 10px 28px;
+            border-radius: 50px;
+            font-size: 14px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.2s;
+        }
+
+        .btn-download:hover {
+            background: var(--primary);
+            color: #fff;
+        }
+
+        /* ===== Footer ===== */
+        footer {
+            background: linear-gradient(180deg, var(--primary-soft) 0%, var(--canvas-alt) 100%);
+            padding: 60px 24px 24px;
+            border-top: 1px solid rgba(67, 160, 71, 0.08);
+        }
+
+        .footer-content {
+            max-width: 1100px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            gap: 40px;
+            margin-bottom: 40px;
+        }
+
+        .footer-logo span {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .footer-logo p {
+            font-size: 14px;
+            color: var(--ink-muted);
+            margin-top: 6px;
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 60px;
+        }
+
+        .footer-links-group h4 {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--ink);
+            margin-bottom: 14px;
+        }
+
+        .footer-links-group ul {
+            list-style: none;
+        }
+
+        .footer-links-group li {
+            margin-bottom: 8px;
+        }
+
+        .footer-links-group a {
+            color: var(--ink-muted);
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 0.2s;
+        }
+
+        .footer-links-group a:hover {
+            color: var(--primary);
+        }
+
+        .footer-bottom {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding-top: 20px;
+            border-top: 1px solid rgba(67, 160, 71, 0.1);
+            text-align: center;
+        }
+
+        .footer-bottom p {
+            font-size: 13px;
+            color: var(--ink-muted);
+        }
+
+        /* ===== Responsive ===== */
+        @media (max-width: 900px) {
+            .hero {
+                flex-direction: column;
+                text-align: center;
+                padding-top: 60px;
+            }
+
+            .hero-content h1 {
+                font-size: 36px;
+            }
+
+            .hero-content p {
+                margin: 0 auto 36px;
+            }
+
+            .cta-buttons {
+                justify-content: center;
+            }
+
+            .hero-visual {
+                width: 300px;
+                height: 220px;
+            }
+
+            .intro-cards,
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .scenario,
+            .scenario.reverse {
+                flex-direction: column;
+                gap: 32px;
+            }
+
+            .footer-content {
+                flex-direction: column;
+            }
+
+            .footer-links {
+                flex-wrap: wrap;
+                gap: 32px;
+            }
+
+            .nav-links {
+                display: none;
+            }
+
+            .mobile-toggle {
+                display: flex;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="nav-inner">
+            <a href="#" class="logo">
+                <div class="logo-icon"><i class="fas fa-leaf"></i></div>
+                <span>小秋桌面</span>
+            </a>
+            <ul class="nav-links">
+                <li><a href="#intro">简介</a></li>
+                <li><a href="#features">功能</a></li>
+                <li><a href="#scenarios">场景</a></li>
+                <li><a href="#download">下载</a></li>
+                <li><a href="SpringScreenShot.html" class="nav-link-badge"><i class="fas fa-camera" style="margin-right:4px;"></i>小秋截图</a></li>
+            </ul>
+            <div class="mobile-toggle">
+                <span></span><span></span><span></span>
+            </div>
+        </div>
+    </nav>
+
+    <header>
+        <div class="hero">
+            <div class="hero-content">
+                <h1>让<span class="highlight">智能点亮</span>你的每一个瞬间</h1>
+                <p>跨应用智能助手，让工作效率倍增。划词即唤醒，处处皆可用。</p>
+                <div class="cta-buttons">
+                    <a href="#download" class="btn btn-primary"><i class="fas fa-download"></i> 立即下载</a>
+                    <a href="#features" class="btn btn-secondary">了解更多</a>
+                </div>
+            </div>
+            <div class="hero-graphic">
+                <div class="hero-visual">
+                    <div class="floating-dots">
+                        <span></span><span></span><span></span><span></span><span></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <section id="intro" class="section">
+        <div class="container">
+            <div class="section-header">
+                <h2>智能助手，随处可用</h2>
+                <p>小秋桌面是一款跨平台的AI助手应用，只需划词即可激活，让效率提升触手可及</p>
+            </div>
+            <div class="intro-cards">
+                <div class="intro-card">
+                    <div class="card-icon"><i class="fas fa-infinity"></i></div>
+                    <h3>全场景跨应用</h3>
+                    <p>无论任何应用环境，只需划选文本，即可一键唤醒小秋桌面。Office、浏览器、聊天工具，处处可用，让您的工作流不再被打断。</p>
+                </div>
+                <div class="intro-card">
+                    <div class="card-icon"><i class="fas fa-shield-alt"></i></div>
+                    <h3>安全稳定可靠</h3>
+                    <p>采用企业级安全架构，接入统一认证体系，敏感数据加密处理，保障您的信息安全与隐私，让您使用更加安心。</p>
+                </div>
+                <div class="intro-card">
+                    <div class="card-icon"><i class="fas fa-puzzle-piece"></i></div>
+                    <h3>灵活拓展定制</h3>
+                    <p>通过简洁强大的ISkill接口，轻松开发和集成自定义功能，满足不同行业和场景需求，打造专属于您的智能助手。</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="features" class="section section-alt">
+        <div class="container">
+            <div class="section-header">
+                <h2>核心功能</h2>
+                <p>提升工作效率的智能工具集</p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fas fa-magic"></i></div>
+                    <h3>智能润色</h3>
+                    <p>一键优化文本内容，让表达更加专业、流畅，提升文档质量</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fas fa-language"></i></div>
+                    <h3>即时翻译</h3>
+                    <p>支持多语言翻译，轻松突破语言障碍，实现无缝沟通</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fas fa-compress-alt"></i></div>
+                    <h3>内容总结</h3>
+                    <p>快速提取文章要点，生成简洁明了的摘要，节省阅读时间</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fas fa-copy"></i></div>
+                    <h3>智能复制</h3>
+                    <p>增强的复制功能，支持格式保留和智能处理，提高工作效率</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fas fa-calendar-check"></i></div>
+                    <h3>日程管理</h3>
+                    <p>从文本中识别日程信息，自动创建任务提醒，让时间管理更高效</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fas fa-bookmark"></i></div>
+                    <h3>内容收藏</h3>
+                    <p>一键保存重要信息，建立个人知识库，随时查阅和分享</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="scenarios" class="section">
+        <div class="container">
+            <div class="section-header">
+                <h2>智能应用场景</h2>
+                <p>无缝融入您的工作流程，让每一次文本处理更高效</p>
+            </div>
+            <div class="scenarios-wrapper">
+                <div class="scenario">
+                    <div class="scenario-content">
+                        <h3>智能文档处理</h3>
+                        <p>在Word、PDF或任何文档中，只需选中文本，小秋桌面立即为您提供专业润色，让您的表达更加精准流畅，无需在应用间来回切换。</p>
+                        <ul class="scenario-features">
+                            <li><i class="fas fa-check-circle"></i> 一键优化文档表达</li>
+                            <li><i class="fas fa-check-circle"></i> 智能纠错与格式调整</li>
+                            <li><i class="fas fa-check-circle"></i> 专业术语推荐</li>
+                        </ul>
+                    </div>
+                    <div class="scenario-image">
+                        <div class="mockup">
+                            <div class="mockup-badge">提升效率</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="scenario reverse">
+                    <div class="scenario-content">
+                        <h3>即时内容翻译</h3>
+                        <p>浏览外文网站时，只需划选内容，小秋桌面便能提供准确翻译，同时还能将长篇文章智能概括为关键要点，帮您节省宝贵的阅读时间。</p>
+                        <ul class="scenario-features">
+                            <li><i class="fas fa-check-circle"></i> 多语言智能翻译</li>
+                            <li><i class="fas fa-check-circle"></i> 内容摘要生成</li>
+                            <li><i class="fas fa-check-circle"></i> 专业术语精准转换</li>
+                        </ul>
+                    </div>
+                    <div class="scenario-image">
+                        <div class="mockup">
+                            <div class="mockup-badge">突破语言障碍</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="scenario">
+                    <div class="scenario-content">
+                        <h3>智能日程管理</h3>
+                        <p>会议记录、邮件往来中提到的时间安排，小秋桌面能自动识别并提取，帮您创建日程提醒，确保不错过任何重要约定，让时间管理更加高效。</p>
+                        <ul class="scenario-features">
+                            <li><i class="fas fa-check-circle"></i> 自动提取时间信息</li>
+                            <li><i class="fas fa-check-circle"></i> 一键创建日程提醒</li>
+                            <li><i class="fas fa-check-circle"></i> 智能优先级排序</li>
+                        </ul>
+                    </div>
+                    <div class="scenario-image">
+                        <div class="mockup">
+                            <div class="mockup-badge">高效管理时间</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="download" class="section section-alt">
+        <div class="container">
+            <div class="section-header">
+                <h2>立即体验</h2>
+                <p>小秋桌面，让智能点亮你的每一个瞬间</p>
+            </div>
+            <div class="download-cards">
+                <div class="download-card">
+                    <div class="download-icon"><i class="fab fa-windows"></i></div>
+                    <h3>Windows版</h3>
+                    <a href="https://desktop.cqczy.cn/update-package/3a1d89af-2c40-e49b-2d58-bb1e8a1e136b/download" class="btn-download">下载</a>
+                </div>
+                <div class="download-card">
+                    <div class="download-icon"><i class="fab fa-apple"></i></div>
+                    <h3>macOS版</h3>
+                    <a href="#" class="btn-download stayTuned">下载</a>
+                </div>
+                <div class="download-card">
+                    <div class="download-icon"><i class="fab fa-linux"></i></div>
+                    <h3>Linux版</h3>
+                    <a href="#" class="btn-download stayTuned">下载</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="footer-content">
+            <div class="footer-logo">
+                <span><i class="fas fa-leaf" style="margin-right:6px;"></i>小秋桌面</span>
+                <p>让智能点亮你的每一个瞬间</p>
+            </div>
+            <div class="footer-links">
+                <div class="footer-links-group">
+                    <h4>产品</h4>
+                    <ul>
+                        <li><a href="#features">功能</a></li>
+                        <li><a href="#download">下载</a></li>
+                        <li><a href="SpringScreenShot.html">小秋截图</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links-group">
+                    <h4>资源</h4>
+                    <ul>
+                        <li><a href="#" class="stayTuned">文档</a></li>
+                        <li><a href="#" class="stayTuned">教程</a></li>
+                        <li><a href="#" class="stayTuned">更新日志</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links-group">
+                    <h4>关于</h4>
+                    <ul>
+                        <li><a href="#" class="stayTuned">团队</a></li>
+                        <li><a href="https://tucao.9cair.com/pages/product/4f477fcf1c3e4c9bac657ee67ea2b655">联系我们</a></li>
+                        <li><a href="#" class="stayTuned">隐私政策</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2025 小秋桌面. 保留所有权利</p>
+        </div>
+    </footer>
+
+    <script>
+        document.querySelectorAll('.stayTuned').forEach(function (el) {
+            el.addEventListener('click', function (e) {
+                e.preventDefault();
+                alert('该功能正在开发中，敬请期待！');
+            });
+        });
+    </script>
+</body>
+</html>
